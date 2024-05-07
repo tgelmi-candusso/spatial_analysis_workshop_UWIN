@@ -19,7 +19,7 @@ captures.table <- read.csv("captures.csv")
 # Tell people how to find their UTM and state plane (others?)
 
 # Convert to spatial data frame
-captures <- st_as_sf(captures.table,
+captures.spatial <- st_as_sf(captures.table,
                      coords = c("longitude","latitude"), 
                      crs = 4326)
 
