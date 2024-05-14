@@ -25,11 +25,11 @@ crs(trees) #it's WGS84
 #check the information contained within
 str(trees) #structure of the dataset
 
-#plot a subset to check the layer
-plot(trees[1:10,1]) #polygon shapes based on sites, lets convert them into points so we can get density of trees later on
+#plot a subset to check the layer, when stating subset [x,y] x is row number, y is attribute column
+plot(trees[1:100,2]) #polygon shapes based on sites, lets convert them into points so we can get density of trees later on
 
-#interctive plot
-plet(trees(1:10,1))
+#interactive plot, we need to convert to terra though for this
+plet(vect(trees[1:100,2]), "Hgt_Q98")
 
 #convert polygons to centroids (only a few - time constraint)
 trees_p <- st_centroid(trees[1:100,]) # we can also avoid this and just count the number of trees in total and later on within the buffer
@@ -40,7 +40,7 @@ total_trees <- nrow(trees)  #total number of trees, each row is one tree in this
 #count number of features by attribute (number of trees per tree type)
 tree_numbers <- aggregate(OBJECTID  ~ Type, data=trees, FUN="length") #check proportion of urban gree types
 
-#let's do some match and create new attributes 
+#let's do some math and create new attributes 
 #information inside would allow us to check the total cover, if we knew the units
 # if each tree has a cover area of πr2, crown area given the radius, we can estimate the total area in the city covered by tree branches
 trees$cover <- (pi*((trees$Radius*0.0254)^2))  #converted from inch2 to in metres2
@@ -61,8 +61,44 @@ trees.red<-trees %>% dplyr::select("","")
 trees_df <- as.data.frame(trees.red)
 write.csv(trees_df, "trees_df.csv")
 
-#convert trees layer to vector, maybe it will be faster to work with for certain things
-vect(trees)
+##using terra , faster for some things
+#let's convert the spatial dataframe into a vector from terra
+trees_T <-vect(trees) #here we are converting the spatial dataframe object to a spatvector, gives out the same object as before
+#could also call directly the shapefile
+trees_T <- vect("Tree_Canopy/Seattle_Tree_Canopy_2021_Tree_Crowns.shp")
+#let's extract an attribute, we can do so like we would from a dataframe, it gives as a vector
+trees_T$Hgt_Q98 
+#also works like this
+trees_T[, 2] #chooses second column, can also be done by naming it
+trees_T[, "Hgt_Q98"] #chooses column named  "Hgt_Q98"
+
+#let's extract a set of features based on their attribute values, we write the condition to select rows based on it
+tallest_trees <- trees_T[trees_T$Hgt_Q98>=300, ] #only trees over 300 whatever units this layer is, let's say these are the trees that matter to your focal_species or analysis
+#another way:
+tallest_trees<- which(trees_T$Hgt_Q98>=300)
+
+#add attribute,   assigning a top rank to tallest trees, we can do this with tidyterra we can use tidyterra for this that uses both dplyr and terra
+library(tidyterra)
+trees_T  <- trees_T %>% mutate(rank=ifelse(OBJECTID %in% tallest_trees$OBJECTID, 1, 0)) #if tree ID is in the previous object we created just with the tallest trees then we assign a value of 1
+#we can also do this with base R
+trees_T$rank<- ifelse(trees_T$OBJECTID %in% tallest_trees$OBJECTID, 1, 0)
+
+#now we convert the vector to a raster, based on an attribute or a stat (below)
+#covert to raster based on tree height, we'll do this only for a few so we dont crash anything
+#generate a template raster setting resolution and size
+r <- rast(resolution=0.001, extent=c(-122.4349, -122.2456, 47.60144, 47.73419 ))
+trees_height_R <- rasterize(trees_T, r, "Hgt_Q98")
+plot(trees_height_R)
+
+#now let's create a raster with tree count
+#1. convert polygons to points so we can count them
+#we will use the sf object and st_centroids to speed up the process
+trees_p <- st_centroid(trees) # we can also avoid this and just count the number of trees in total and later on within the buffer
+#alternative with terra package
+trees_p <- points(trees_T) #takes a while, might not be a great example
+trees_PR <- rasterize(trees_p, r, fun=sum) #quick
+plot(trees_PR)
+#trees_PR2 <- rasterize(trees$radius, r, fun=sum) 
 
 sf_use_s2(FALSE)
 
@@ -133,38 +169,31 @@ sf::st_write(forest, "E:/OSM_in_R/Seattle_forest.shp")
 sf::st_write(grass, "E:/OSM_in_R/Seattle_grass.shp")
 sf::st_write(roads_low_traffic, "E:/OSM_in_R/Seattle_roads.shp")
 
-##using terra , faster for some things, some functions to revise, next step: to integrate this into the workflow, using them to further manipulate osm data
-#let's convert the spatial dataframe into a vector from terra
-vect(trees)
-#extract attribute
-p$NAME_2
-#subset 
-p[, "NAME_2"]
-#add attribute
-p$lets <- sample(letters, nrow(p))
-#merge vector layers
-pm <- merge(p, dfr, by.x=c('NAME_1', 'NAME_2'), by.y=c('District', 'Canton'))
-#select records by attributes
-i <- which(p$NAME_1 == 'Grevenmacher')
-#aggregate polygons by 
-pa <- aggregate(p, by='NAME_1')
-#without dissolving borders
-zag <- aggregate(z, dissolve=FALSE)
-#erase part of vectors
-e <- erase(p, z2)
-#intersect polygons: #intersect returns new (intersected) geometries with the attributes of both input datasets.
-i <- intersect(p, z2)
-#crop a polygon 
-e <- ext(6, 6.4, 49.7, 50)
-pe <- crop(p, e)
-#get the union of two polygons # union appends the geometries and attributes of the input. 
-u <- union(p, z)
-#cover returns the intersection and appends the other geometries and attributes of both datasets.
-cov <- cover(p, z[c(1,4),])
-#dfference between two polygon layers
-dif <- symdif(z,p)
-#query polygon areas from raster
-extract(spts, p)
+
+
+# #merge vector layers
+# pm <- merge(tallest_trees, shortest_trees, by.x=c('OB', 'NAME_2'), by.y=c('District', 'Canton'))
+# #select records by attributes
+# i <- which(p$NAME_1 == 'Grevenmacher')
+# #aggregate polygons by 
+# pa <- aggregate(p, by='NAME_1')
+# #without dissolving borders
+# zag <- aggregate(z, dissolve=FALSE)
+# #erase part of vectors
+# e <- erase(p, z2)
+# #intersect polygons: #intersect returns new (intersected) geometries with the attributes of both input datasets.
+# i <- intersect(p, z2)
+# #crop a polygon 
+# e <- ext(6, 6.4, 49.7, 50)
+# pe <- crop(p, e)
+# #get the union of two polygons # union appends the geometries and attributes of the input. 
+# u <- union(p, z)
+# #cover returns the intersection and appends the other geometries and attributes of both datasets.
+# cov <- cover(p, z[c(1,4),])
+# #dfference between two polygon layers
+# dif <- symdif(z,p)
+# #query polygon areas from raster
+# extract(spts, p)
 
 
 #for case study
