@@ -14,9 +14,11 @@ In this section we will read and manipulate vector data in R.
 * Vector data is commonly stored as a shapefile and can contain either point data or polygon data. 
 * Data contains information attached to each feature, we call these attributes.  
 
-![Figure showing polygons, points and lines in the landscape](images/vector_data_image_from_docs_qgis_org.png "Vector data")   
+Features can be points (red) representing specific x,y locations, such as a camera sites; polygons (white) representing areas, such as forests or residential areas; and lines (yellow/green and blue) representing continuous linear features, such as roads or rivers
 
-The data reads as a data frame would, each row is a feature and each column is an attribute, and contains usually a geometry column where the xy coordinates for the shapes are stored. Plotting these data will plot the points or shapes in the map using the xy coordinates stored for each features.   
+![Figure showing polygons, points and lines in the landscape](images/vector_data_image_from_docs_qgis_org.png "Vector data"){width=80%}  
+
+Vector data reads as a data frame would, each row is a feature and each column is an attribute, and contains usually a geometry column where the xy coordinates for the shapes are stored. Plotting these data will plot the points or shapes in the map using the xy coordinates stored for each features.   
 
 ```{r, echo=FALSE}
 captures.table <- read.csv("captures.csv")
