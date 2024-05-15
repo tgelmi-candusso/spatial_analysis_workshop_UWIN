@@ -1,5 +1,5 @@
 ---
-title: 'Spatial Analysis in R: Vectors'
+title: 'Spatial Analysis in R'
 author: "M. Jordan and TA Gelmi-Candusso"
 date: "2024-05-15"
 output:
