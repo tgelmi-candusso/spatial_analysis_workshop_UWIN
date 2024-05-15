@@ -1,8 +1,10 @@
 ---
-title: "Spatial Analysis in R: Vectors"
+title: 'Spatial Analysis in R: Vectors'
 author: "M. Jordan and TA Gelmi-Candusso"
 date: "2024-05-15"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -65,9 +67,7 @@ print(head(captures.table))
 ```
 The coordinates are stored in the latitude and longitude, to be able to observe these points in the map, and extract environmental information based on their location, we will have to convert it to a spatial data frame object. We will use the st_as_sf() function from the sf package and we will specify the projection (crs). How do we know which projection our data is in? 
 
-# This section will also introduce the idea of a CRS
-# Specifically introduce 4326 and 26910.
-# Tell people how to find their UTM and state plane (others?)
+<>(This section will also introduce the idea of a CRS. Specifically introduce 4326 and 26910. Tell people how to find their UTM and state plane (others?))
 
 
 ```{r}
@@ -78,10 +78,8 @@ print(head(captures.spatial))
 ```
 
 We want our data to be in the NAD83 projection, because we need our data in the UTM coordinate system to be compatible with google map 
-#I dont know if I understood correctly the comment below but wrote a draft anyways.
-# Transform to UTM
-# Will only plot on google map if it's in lat/lon, so we need to think about
-# where we introduce this.
+<>(I dont know if I understood correctly the comment below but wrote a draft anyways.)
+<>( Transform to UTM. Will only plot on google map if it's in lat/lon, so we need to think about where we introduce this.)
 
 ```{r}
 captures.utm <- st_transform(captures.spatial, crs = 26910)
@@ -96,10 +94,8 @@ ggplot(captures.utm) + geom_sf()
 
 ```
 
-There is no basemap in this plot, we want to add a reference so we can easily distinguish between locations. We will use google maps for this, first we load the ggmap package and register our api from google.
-# Use an API key for the 'uwin-mapping' project that I created for this
-# Describe in the Rmd how to get your own
-# setup API key to use
+There is no basemap in this plot, we want to add a reference so we can easily distinguish between locations. We will use google maps for this, first we load the ggmap package and register an api from google.
+<>(Use an API key for the 'uwin-mapping' project that I created for this. <>(Describe in the Rmd how to get your own setup API key to use)
 
 ```{r}
 library(ggmap)
@@ -125,7 +121,7 @@ ggmap(seattle)
 ```
 
 Now we can plot our camera site locations on the Seattle map
-#note the original crs works with google, not the utm. 
+<>(note the original crs works with google, not the utm.)
 
 ```{r}
 ggmap(seattle) +
@@ -147,8 +143,7 @@ ggmap(seattle) +
 ```
 
 Now do the same for raccoons
-# Hide this using the method from the UWIN tutorial
-# https://github.com/urbanwildlifeinstitute/UWIN_tutorials/blob/main/tutorials/Detection%20Mapping/detection_mapping.md?plain=1
+<>(Hide this using the method from the UWIN tutorial https://github.com/urbanwildlifeinstitute/UWIN_tutorials/blob/main/tutorials/Detection%20Mapping/detection_mapping.md?plain=1)
 
 
 ```{r}
