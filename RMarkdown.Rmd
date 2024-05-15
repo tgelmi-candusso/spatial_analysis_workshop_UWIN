@@ -9,6 +9,8 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+#  Spatial data  
+
 Spatial data is any type of data that directly or indirectly references a specific geographical area or location. These can be, for example, geographic features on the landscape or environmental properties of an area such as temperature or air quality.
 
 Spatial data can be continuous or discrete just like regular data, and in both cases it can be represented as a vector or a raster. The main difference being vector data uses points and lines to represent spatial data, while raster data represents data uses pixelled or gridded, where each pixel/cell represents a specific geographic location and the information therein. Raster data will be heavily influenced by the size of the pizels/cells, i.e. resolution.
@@ -21,6 +23,7 @@ Both vector and raster data are planar representations of the world, a 3-dimensi
 
 Maps with different projections are not comparable and cannot be overlaid. Therefore, we need to make sure we work always on the same projection when using more maps. In addition, projections can have different coordinate systems and therefore when extracting distance information from maps, some projections (i.e. metric based projections e.g. Mercator projection or the Albers equal-area projection) will give a more accurate representation of the distance than others. To work around this, we can transform our maps between projections, in R we use EPSG codes to do this.
 
+##  Vector data  
 
 In this section we will read and manipulate vector data in R. 
 * Vector data represents real world features within the GIS environment. A feature is anything you can see on the landscape. 
@@ -46,5 +49,116 @@ Packages used to read an manipulate data include the sf package, that reads the 
 ```{r load packages, echo=TRUE, eval=FALSE}
 library(sf)
 library(terra)
+```
+
+### Vector data: points
+
+Point data can be obtained directly from a shapefile or a csv file where each row is a feature. In this case we will work with camera trap site data and the information collected at each site, i.e. point.
+
+The camera trap sites here are located in Seattle, and have captured coyote and raccoon presence and absence from the 2019 spring season to the 2021 winter season.
+
+The data is stored as a data frame in a csv. 
+
+```{r}
+captures.table <- read.csv("data/captures.csv")
+print(head(captures.table))
+```
+The coordinates are stored in the latitude and longitude, to be able to observe these points in the map, and extract environmental information based on their location, we will have to convert it to a spatial data frame object. We will use the st_as_sf() function from the sf package and we will specify the projection (crs). How do we know which projection our data is in? 
+
+# This section will also introduce the idea of a CRS
+# Specifically introduce 4326 and 26910.
+# Tell people how to find their UTM and state plane (others?)
+
+
+```{r}
+captures.spatial <- st_as_sf(captures.table,
+                     coords = c("longitude","latitude"), 
+                     crs = 4326)
+print(head(captures.spatial))
+```
+
+We want our data to be in the NAD83 projection, because we need our data in the UTM coordinate system to be compatible with google map 
+#I dont know if I understood correctly the comment below but wrote a draft anyways.
+# Transform to UTM
+# Will only plot on google map if it's in lat/lon, so we need to think about
+# where we introduce this.
+
+```{r}
+captures.utm <- st_transform(captures.spatial, crs = 26910)
+print(head(captures.utm))
+
+```
+Let's observe the spatial distribution of the points by plotting them using the ggplot2 package. The geom_sf() function will allow us to plot the spatial data frame object. 
+
+```{r}
+library(ggplot2)
+ggplot(captures.utm) + geom_sf()
+
+```
+
+There is no basemap in this plot, we want to add a reference so we can easily distinguish between locations. We will use google maps for this, first we load the ggmap package and register our api from google.
+# Use an API key for the 'uwin-mapping' project that I created for this
+# Describe in the Rmd how to get your own
+# setup API key to use
+
+```{r}
+library(ggmap)
+my_api <- 'AIzaSyBt73bzxdvlS6ioit4OTCaIE6SrZJ9aWnA'
+register_google(key = my_api)
+
+```
+
+We then get the map relevant to our region using the get_map() function. This can be done both using a bounding box with coordinate information if we want a specific study area, or just the city's name. 
+
+```{r}
+seattle <- get_map("seattle", source= "google", api_key = my_api)
+ggmap(seattle)
+```
+
+If we use a bounding box, the code will look like this:
+
+```{r}
+seattle <- get_map(location = c(left = -122.5, bottom = 47.4,
+                                right = -122.0, top = 47.8),
+                   source ="google", api_key = my_api)
+ggmap(seattle)
+```
+
+Now we can plot our camera site locations on the Seattle map
+#note the original crs works with google, not the utm. 
+
+```{r}
+ggmap(seattle) +
+  geom_sf(data=captures.spatial, inherit.aes = FALSE)
+```
+Now lets plot on a map the coyotes captured at each the camera trap sites. We will filter the data based on species name, using the dplyr package, and count detections at each site. We will then plot using the function seen above, but setting point size based on the number of detections at each site.
+
+```{r}
+library(dplyr)
+coyotes <- filter(captures.spatial, speciesname == "Canis latrans") %>%
+  group_by(locationid) %>%
+  summarize(detections = n())
+ggmap(seattle) +
+  geom_sf(data = coyotes, inherit.aes = FALSE, aes(size = detections)) +
+  ggtitle("Coyote detections") +
+  labs(size = "Detection frequency") +
+  scale_size_continuous(breaks=seq(100, 500, by=100))
+
+```
+
+Now do the same for raccoons
+# Hide this using the method from the UWIN tutorial
+# https://github.com/urbanwildlifeinstitute/UWIN_tutorials/blob/main/tutorials/Detection%20Mapping/detection_mapping.md?plain=1
+
+
+```{r}
+raccoons <- filter(captures.spatial, speciesname == "Procyon lotor") %>%
+  group_by(locationid) %>%
+  summarize(detections = n())
+ggmap(seattle) +
+  geom_sf(data = raccoons, inherit.aes = FALSE, aes(size = detections)) +
+  ggtitle("Coyote detections") +
+  labs(size = "Detection frequency") +
+  scale_size_continuous(breaks=seq(100, 500, by=100))
 ```
 
