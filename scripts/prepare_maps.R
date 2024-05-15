@@ -15,3 +15,4 @@ writeRaster(NDVI, "maps/NDVI_Seattle.tif")
 WA_boundary <- project(WA_boundary, BUILT)
 BUILT <-  crop(BUILT, WA_boundary)
 writeRaster(BUILT, "maps/BUILT_Seattle.tif")
+
