@@ -1,0 +1,37 @@
+---
+title: "Spatial Analysis in R: Vectors"
+author: "M. Jordan and TA Gelmi-Candusso"
+date: "2024-05-15"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+In this section we will read and manipulate vector data in R. 
+* Vector data represents real world features within the GIS environment. A feature is anything you can see on the landscape. 
+* Vector data is commonly stored as a shapefile and can contain either point data or polygon data. 
+* Data contains information attached to each feature, we call these attributes.  
+
+![Figure showing polygons, points and lines in the landscape](images/vector_data_image_from_docs_qgis_org.png "Vector data")   
+
+The data reads as a data frame would, each row is a feature and each column is an attribute, and contains usually a geometry column where the xy coordinates for the shapes are stored. Plotting these data will plot the points or shapes in the map using the xy coordinates stored for each features.   
+
+```{r, echo=FALSE}
+captures.table <- read.csv("captures.csv")
+captures.spatial <- st_as_sf(captures.table,
+                     coords = c("longitude","latitude"), 
+                     crs = 4326)
+print(head(captures.spatial))
+```
+
+
+Packages used to read an manipulate data include the sf package, that reads the shapefile as a spatial data frame, and the terra package that reads the shapefiles as a spatvector.  
+
+
+```{r load packages, echo=TRUE}
+library(sf)
+library(terra)
+```
+

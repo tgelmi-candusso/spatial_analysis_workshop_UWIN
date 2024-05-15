@@ -1,4 +1,8 @@
 
+library(dplyr)
+library(osmextract)
+library(sf)
+library(terra)
 
 #generate buffer areas around camera traps####
 coyotes_NAD <- sf::st_transform(coyotes, crs="EPSG:5070")
@@ -47,4 +51,4 @@ tree_radius <- aggregate(Radius  ~ locationid, data=tree.int, FUN="mean") #check
 #estimate proportion of tree type
 tree_numbers <- aggregate(Type  ~ locationid, data=tree.int, FUN="length") #check proportion of urban gree types
 
-### Now 
+### Now we will get analyse the NDVI and built values within the buffer and decide which stats works better for us
