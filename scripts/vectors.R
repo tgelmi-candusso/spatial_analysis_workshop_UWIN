@@ -26,7 +26,7 @@ crs(trees) #it's WGS84
 str(trees) #structure of the dataset
 
 #plot a subset to check the layer, when stating subset [x,y] x is row number, y is attribute column
-plot(trees[1:100,2]) #polygon shapes based on sites, lets convert them into points so we can get density of trees later on
+plot(trees[1:1000,2]) #polygon shapes based on sites, lets convert them into points so we can get density of trees later on
 
 #interactive plot, we need to convert to terra though for this
 plet(vect(trees[1:100,2]), "Hgt_Q98")

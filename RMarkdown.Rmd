@@ -221,7 +221,7 @@ We will first load a shapefile with polygons delimiting urban wildlife habitat a
 We can read a polygon dataset, like points and lines, with either the sf package or the terra package. The main difference is only the speed at which certain processes happen, but most functions are found in equivalent versions in both packages. When we plot a Spatvector from terra, we dont need to specify one attribute, it draws only one map regardless. 
 
 ```{r}
-habitat_sf <- sf::st_read("Wildlife_habitat/ECA_Wildlife_Habitat.shp")
+habitat_sf <- sf::st_read("maps/Wildlife_habitat/ECA_Wildlife_Habitat.shp")
 plot(habitat_sf[,1])
 title("Sf object")
 ```
@@ -229,9 +229,22 @@ title("Sf object")
 
 ```{r}
 library(terra)
-habitat <- terra::vect("Wildlife_habitat/ECA_Wildlife_Habitat.shp")
+habitat <- terra::vect("maps/Wildlife_habitat/ECA_Wildlife_Habitat.shp")
 plot(habitat)
 ```
+
+##add this part here, measuring the area occupied by wildlife habitat
+#estimate surface area of forest and grass
+#convert to equal area projection
+forest <- forest %>% mutate(forest_area_km2 = as.numeric(st_area(forest))/1000000)
+total_forest <- sum(forest$forest_area_km2)
+
+#estimate area of grass and then estimate area of the different types of leisure urban areas
+grass <- grass %>% mutate(grass_area_km2 = as.numeric(st_area(grass))/1000^2)
+freq_table <- aggregate(grass_area_km2 ~ leisure, data=grass, FUN="sum") #check proportion of urban gree types
+
+
+
 
 The tree dataset comes from [the Seattle open data](https://data-seattlecitygis.opendata.arcgis.com/) and delimits tree crowns which found with LiDAr data. I have cropped this layer to a section of seattle given the document size. We will load and look at the attributes contained within, we can also do this for sf object, by using the str() function.
 
@@ -349,4 +362,77 @@ To save our output raster to a .tif file, we use the writeRaster function from t
 ```{r, eval=FALSE}
 writeRaster(trees_PR, "tree_density.tif"
 ```
+
+#### Vector data: Extracting data from OSM
+
+First we need the table with the set of validated osm keys to make sure we dont miss any urban osm features, we will use the "keys" object in the next chunk.
+
+```{r}
+osm_kv <- read.csv("data/osm_key_values.csv")
+osm_kv <- osm_kv %>% filter(!is.na(key))
+keys <- unique(osm_kv$key)
+
+```
+
+Then we can extract the osm data for Seattle. Osm stores data both in several formats including points, lines and polygons, the ones that we are interested for this case are lines and polygons.
+
+```{r}
+Seattle_pol <- osmextract::oe_get("Seattle",
+                             layer = "multipolygons", 
+                             extra_tags=keys)
+
+Seattle_lines <- osmextract::oe_get("Seattle",
+                              layer = "lines", 
+                              extra_tags=keys)
+```
+
+Now we can extract from the Seattle data extracted we can filter based on the land cover class or land features we are interested in. We will focus on forest areas, grass areas, and roads. Note that roads will be filtered from the lines layer.
+
+```{r}
+forest <- Seattle_pol %>% dplyr::filter(landuse %in% c("forest")|
+                                              natural  %in% c("wood")|
+                                              boundary %in% c("forest", "forest_compartment"))
+
+grass <- Seattle_pol %>% dplyr::filter(landuse %in% c("park", "grass", "cemetery", "greenfield", "recreation_ground", "winter_sports")|
+                                              (!is.na(golf) & !(golf %in% c("rough","bunker"))) |
+                                              amenity %in% c("park") |
+                                              leisure %in% c("park", "stadium", "playground", "pitch", "sports_centre", "stadium", "pitch", "picnic_table", "pitch", "dog_park", "playground")|
+                                              sport %in% c("soccer")|
+                                              power %in% c("substation")|
+                                              surface %in% c("grass"))
+
+grass<-sf::st_make_valid(grass) #eliminates self intersecting multipolygons
+
+#linear features with low traffic (Residential roads)
+
+res_roads	<- Seattle_lines %>% dplyr::filter(highway	%in% c("residential", "rest_area", "busway"))
+
+plot(forest[,1])
+plot(grass[,1])
+plot(res_roads[,1])
+```
+
+We should check projection and transform to the one we want
+
+```{r}
+crs(grass) #= WGS84, EPSG: 4326
+
+grass <- sf::st_transform(grass, crs="EPSG:5070") #we'll use the North America focuses Albers equal-area
+forest <- sf::st_transform(forest, crs="EPSG:5070") 
+res_roads <- sf::st_transform(res_roads, crs="EPSG:5070") 
+
+```
+
+Save polygon layers from sf objects to shapefiles
+
+```{r}
+sf::st_write(forest, "E:/OSM_in_R/Seattle_forest.shp")
+sf::st_write(grass, "E:/OSM_in_R/Seattle_grass.shp")
+sf::st_write(roads_low_traffic, "E:/OSM_in_R/Seattle_roads.shp")
+
+
+```
+
+## Raster data
+
 
