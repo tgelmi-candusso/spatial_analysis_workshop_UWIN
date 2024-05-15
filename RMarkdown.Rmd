@@ -162,7 +162,7 @@ We will look into vector data in the form of lines using the TIGER database for 
 The dataset contains 6 attributes (fields) for each feature.
 
 ```{r}
-roads <- st_read("roads/tl_2019_53_prisecroads.shp")
+roads <- st_read("maps/roads/tl_2019_53_prisecroads.shp")
 print(head(roads))
 ```
 Let's plot the dataset to see how it looks, we will only plot one of the attributes, otherwise it will plot one map for each attribute
@@ -212,4 +212,141 @@ print(head(roads_p)) #now our roads are a polygon map layer
 
 ```
 
-### Vector data: polygon
+### Vector data: polygons
+
+Polygon data, sometimes also multipolygon data, are data that delimits an area, the shape of this area might represent specific physical features, such as buildings, or it might delimit an area with similar characteristics, for example residential areas or parks, or forest. 
+
+We will first load a shapefile with polygons delimiting urban wildlife habitat areas, a shapefile containing all trees in seattle, and then we will extract our own polygons from the OpenStreetMap database. 
+
+We can read a polygon dataset, like points and lines, with either the sf package or the terra package. The main difference is only the speed at which certain processes happen, but most functions are found in equivalent versions in both packages. When we plot a Spatvector from terra, we dont need to specify one attribute, it draws only one map regardless. 
+
+```{r}
+habitat_sf <- sf::st_read("Wildlife_habitat/ECA_Wildlife_Habitat.shp")
+plot(habitat_sf[,1])
+title("Sf object")
+```
+
+
+```{r}
+library(terra)
+habitat <- terra::vect("Wildlife_habitat/ECA_Wildlife_Habitat.shp")
+plot(habitat)
+```
+
+The tree dataset comes from [the Seattle open data](https://data-seattlecitygis.opendata.arcgis.com/) and delimits tree crowns which found with LiDAr data. I have cropped this layer to a section of seattle given the document size. We will load and look at the attributes contained within, we can also do this for sf object, by using the str() function.
+
+
+```{r}
+trees <- st_read("maps/trees_seattle.shp")
+print(trees)
+```
+The dataset includes height with certain confidence levels, as it was obtained from machine learning algorithms, a tree crown radius for which we dont have a unit, and a tree type. Let's do some stats to understand the tree composition of the area we cropped.
+
+We can count the number of trees in the area per tree type.
+
+```{r}
+tree_numbers <- aggregate(OBJECTID  ~ Type, data=trees, FUN="length")
+print(tree_numbers)
+```
+With the same function we can get statitistics with the attributes in the dataset. For example estimate the mean and max radius and height for each tree type.
+
+```{r}
+tree_numbers$mean_radius <- aggregate(Radius  ~ Type, data=trees, FUN="mean")[,2]
+tree_numbers$max_radius <- aggregate(Radius  ~ Type, data=trees, FUN="max")[,2]
+tree_numbers$mean_height <- aggregate(Hgt_Q99  ~ Type, data=trees, FUN="mean")[,2]
+tree_numbers$max_height <- aggregate(Hgt_Q99  ~ Type, data=trees, FUN="max")[,2]
+
+print(head(tree_numbers))
+```
+
+We can do simple math using the attributes, for example use the crown radius to estimate the total tree cover in the area, pretending it was measured in inches and converting total cover to m2. We estimate the total area of each crown and then add them up.
+
+```{r}
+trees$cover <- (pi*((trees$Radius*0.0254)^2))  #converted from inch2 to in metres2
+sum(trees$cover)
+```
+
+We can also add attributes to a polygon dataset as we would to a dataframe. In this case we will use the tidyterra package, to use a similar syntax we'd use with dplyr. We can also use base R for this. 
+
+For this case we will first extract all the tallest trees into an object and then use this object to attribute a rank to all the trees in the dataset. This codes works for both sf objects and spatvectors.
+
+```{r}
+library(tidyterra)
+
+#let's extract a set of features based on their attribute values. We can do this two ways:
+tallest_trees <- trees[trees$Hgt_Q98>=150, ] 
+#another way:
+tallest_trees<- trees[which(trees$Hgt_Q98>=150),]
+
+## add rank of 1 to trees in the tree dataset if they are in the tallest_trees dataset, using their tree ID
+trees  <- trees %>% mutate(rank=ifelse(OBJECTID %in% tallest_trees$OBJECTID, 1, 0)) 
+#we can also do this with base R
+trees$rank<- ifelse(trees$OBJECTID %in% tallest_trees$OBJECTID, 1, 0)
+
+```
+
+
+
+We can plot the trees following the different attributes using plot
+
+```{r}
+plot(trees[,"Hgt_Q99"])
+```
+
+If we can also plot on a basemap as we did using ggmap in the points section, but we will use plet(), we just need to convert the sf object to a vector. plet() creates an interactive map you can explore, similar to what you would be able to do in QGIS or ArcGIS.
+
+```{r}
+#library(leaflet)
+trees_T <- vect(trees)
+plet(trees_T, "Hgt_Q98", col=c("#00cd00", "#00b300", "#86B049","#7fbf7f", "#008000", "#02471a"), cex=1, lwd=0.1, border="black", fill=1, alpha=0, popup=TRUE, label=FALSE, tiles=c("Streets", "Esri.WorldImagery", "OpenTopoMap"), wrap=TRUE, legend="topleft", collapse=FALSE, map=NULL)
+
+```
+
+Finally, we can convert the polygons to points, in this case working with polygons is slower, and tree locations as points would work faster than manipulating the tree crown polygon layer. 
+
+With the points layer of trees I can estimate the size of the treed area we are analyzing by generating a polygon that encloses them, estimating the size of that polygon (the treed area) and then estimate the tree density within that area.
+
+
+```{r}
+trees_p <- st_centroid(trees) # we can also avoid this and just count the number of trees in total and later on within the buffer
+perimeter <- trees_p %>% 
+  summarise() %>% 
+  concaveman::concaveman(concavity = 1)
+#check crs before estimating area
+perimeter <- st_transform(perimeter, crs="EPSG:5070")
+treed_area <- st_area(perimeter)
+
+nrow(trees_p)/(as.numeric(treed_area)/1e+6) #in trees/km2
+
+```
+
+We can convert a polygon to a raster, based on an attribute. First we need a template raster that defines the resolution and the size (extent) of the raster. Then we use the rasterize() function from terra.
+
+```{r}
+r <- rast(resolution=0.00025, extent=c(-122.3744, -122.363, 47.73252, 47.73419))
+trees_height_R <- rasterize(vect(trees), r, "Hgt_Q98")
+plot(trees_height_R)
+```
+
+We can use the points layer we created to generate a raster with tree counts within each cell, using the previous raster template.
+
+```{r}
+#tree_p <- st_centroids(trees)
+trees_PR <- rasterize(trees_p, r, fun=sum) 
+plot(trees_PR)
+```
+
+
+
+To save vector data into a shapefile we use the writeVector function from terra
+
+```{r, eval=FALSE}
+writeVector(vect(trees), "trees_output.shp")
+```
+
+To save our output raster to a .tif file, we use the writeRaster function from terra
+
+```{r, eval=FALSE}
+writeRaster(trees_PR, "tree_density.tif"
+```
+
