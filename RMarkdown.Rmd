@@ -9,6 +9,15 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+Spatial data is any type of data that directly or indirectly references a specific geographical area or location. These can be, for example, geographic features on the landscape or environmental properties of an area such as temperature or air quality.
+
+Spatial data can be continuous or discrete just like regular data, and in both cases it can be represented as a vector or a raster. The main difference being vector data uses points and lines to represent spatial data, while raster data represents data uses pixelled or gridded, where each pixel/cell represents a specific geographic location and the information therein. Raster data will be heavily influenced by the size of the cells.
+
+![Figure showing difference between vectors and rasters](images/vectorvsraster_from_rsgislearn_blogspot_com.png "Vector data"){width=60%} 
+
+Both vector and raster data are a representation of the world and as such
+
+
 In this section we will read and manipulate vector data in R. 
 * Vector data represents real world features within the GIS environment. A feature is anything you can see on the landscape. 
 * Vector data is commonly stored as a shapefile and can contain either point data or polygon data. 
@@ -18,21 +27,19 @@ Features can be points (red) representing specific x,y locations, such as a came
 
 ![Figure showing polygons, points and lines in the landscape](images/vector_data_image_from_docs_qgis_org.png "Vector data"){width=80%}  
 
-Vector data reads as a data frame would, each row is a feature and each column is an attribute, and contains usually a geometry column where the xy coordinates for the shapes are stored. Plotting these data will plot the points or shapes in the map using the xy coordinates stored for each features.   
+Vector data reads as a data frame would, each row is a feature and each column is an attribute, and contains usually a geometry column where the xy coordinates for the shapes are stored. Plotting these data will plot the points or shapes in the map using the xy coordinates stored for each feature.   
 
 ```{r, echo=FALSE}
-captures.table <- read.csv("captures.csv")
+library(sf)
+captures.table <- read.csv("data/captures.csv")
 captures.spatial <- st_as_sf(captures.table,
                      coords = c("longitude","latitude"), 
                      crs = 4326)
 print(head(captures.spatial))
 ```
+Packages used to read an manipulate data include the sf package, that reads the shapefile as a spatial data frame, and the terra package that reads the shapefiles as a Spatvector, previously there was also the raster package, but we will try to avoid it as it has been deprecated.  
 
-
-Packages used to read an manipulate data include the sf package, that reads the shapefile as a spatial data frame, and the terra package that reads the shapefiles as a spatvector.  
-
-
-```{r load packages, echo=TRUE}
+```{r load packages, echo=TRUE, eval=FALSE}
 library(sf)
 library(terra)
 ```
