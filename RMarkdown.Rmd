@@ -61,7 +61,7 @@ The camera trap sites here are located in Seattle, and have captured coyote and 
 
 The data is stored as a data frame in a csv. 
 
-```{r}
+```{r, eval=FALSE}
 captures.table <- read.csv("data/captures.csv")
 print(head(captures.table))
 ```
@@ -70,7 +70,7 @@ The coordinates are stored in the latitude and longitude, to be able to observe 
 <>(This section will also introduce the idea of a CRS. Specifically introduce 4326 and 26910. Tell people how to find their UTM and state plane (others?))
 
 
-```{r}
+```{r, eval=FALSE}
 captures.spatial <- st_as_sf(captures.table,
                      coords = c("longitude","latitude"), 
                      crs = 4326)
@@ -81,14 +81,14 @@ We want our data to be in the NAD83 projection, because we need our data in the 
 <>(I dont know if I understood correctly the comment below but wrote a draft anyways.)
 <>( Transform to UTM. Will only plot on google map if it's in lat/lon, so we need to think about where we introduce this.)
 
-```{r}
+```{r, eval=FALSE}
 captures.utm <- st_transform(captures.spatial, crs = 26910)
 print(head(captures.utm))
 
 ```
 Let's observe the spatial distribution of the points by plotting them using the ggplot2 package. The geom_sf() function will allow us to plot the spatial data frame object. 
 
-```{r}
+```{r, eval=FALSE}
 library(ggplot2)
 ggplot(captures.utm) + geom_sf()
 
@@ -97,7 +97,7 @@ ggplot(captures.utm) + geom_sf()
 There is no basemap in this plot, we want to add a reference so we can easily distinguish between locations. We will use google maps for this, first we load the ggmap package and register an api from google.
 <>(Use an API key for the 'uwin-mapping' project that I created for this. <>(Describe in the Rmd how to get your own setup API key to use)
 
-```{r}
+```{r, eval=FALSE}
 library(ggmap)
 my_api <- 'AIzaSyBt73bzxdvlS6ioit4OTCaIE6SrZJ9aWnA'
 register_google(key = my_api)
@@ -106,14 +106,14 @@ register_google(key = my_api)
 
 We then get the map relevant to our region using the get_map() function. This can be done both using a bounding box with coordinate information if we want a specific study area, or just the city's name. 
 
-```{r}
+```{r, eval=FALSE}
 seattle <- get_map("seattle", source= "google", api_key = my_api)
 ggmap(seattle)
 ```
 
 If we use a bounding box, the code will look like this:
 
-```{r}
+```{r, eval=FALSE}
 seattle <- get_map(location = c(left = -122.5, bottom = 47.4,
                                 right = -122.0, top = 47.8),
                    source ="google", api_key = my_api)
@@ -123,13 +123,13 @@ ggmap(seattle)
 Now we can plot our camera site locations on the Seattle map
 <>(note the original crs works with google, not the utm.)
 
-```{r}
+```{r, eval=FALSE}
 ggmap(seattle) +
   geom_sf(data=captures.spatial, inherit.aes = FALSE)
 ```
 Now lets plot on a map the coyotes captured at each the camera trap sites. We will filter the data based on species name, using the dplyr package, and count detections at each site. We will then plot using the function seen above, but setting point size based on the number of detections at each site.
 
-```{r}
+```{r, eval=FALSE}
 library(dplyr)
 coyotes <- filter(captures.spatial, speciesname == "Canis latrans") %>%
   group_by(locationid) %>%
@@ -142,11 +142,9 @@ ggmap(seattle) +
 
 ```
 
-Now do the same for raccoons
-<>(Hide this using the method from the UWIN tutorial https://github.com/urbanwildlifeinstitute/UWIN_tutorials/blob/main/tutorials/Detection%20Mapping/detection_mapping.md?plain=1)
+Now try to do the same for raccoons. <>(we can hide code below using echo=FALSE, but depends on how we knit this document, maybe not a good idea for the pdf)
 
-
-```{r}
+```{r, echo=TRUE, eval=FALSE}
 raccoons <- filter(captures.spatial, speciesname == "Procyon lotor") %>%
   group_by(locationid) %>%
   summarize(detections = n())
