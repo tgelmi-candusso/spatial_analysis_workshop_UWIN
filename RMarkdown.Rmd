@@ -11,11 +11,15 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Spatial data is any type of data that directly or indirectly references a specific geographical area or location. These can be, for example, geographic features on the landscape or environmental properties of an area such as temperature or air quality.
 
-Spatial data can be continuous or discrete just like regular data, and in both cases it can be represented as a vector or a raster. The main difference being vector data uses points and lines to represent spatial data, while raster data represents data uses pixelled or gridded, where each pixel/cell represents a specific geographic location and the information therein. Raster data will be heavily influenced by the size of the cells.
+Spatial data can be continuous or discrete just like regular data, and in both cases it can be represented as a vector or a raster. The main difference being vector data uses points and lines to represent spatial data, while raster data represents data uses pixelled or gridded, where each pixel/cell represents a specific geographic location and the information therein. Raster data will be heavily influenced by the size of the pizels/cells, i.e. resolution.
 
 ![Figure showing difference between vectors and rasters](images/vectorvsraster_from_rsgislearn_blogspot_com.png "Vector data"){width=60%} 
 
-Both vector and raster data are a representation of the world and as such
+Both vector and raster data are planar representations of the world, a 3-dimensional sphere, and as such are not perfect copies. Depending on how the planar representation is created it will distort more or less certain areas of the world, therefore many representations exist. These are called projections, as the representations project the 3 dimensional spheric image into a planar, 2-dimensional image.  
+
+![Figure showing difference between vectors and rasters](images/map_projections.png "Vector data"){width=60%} 
+
+Maps with different projections are not comparable and cannot be overlaid. Therefore, we need to make sure we work always on the same projection when using more maps. In addition, projections can have different coordinate systems and therefore when extracting distance information from maps, some projections (i.e. metric based projections e.g. Mercator projection or the Albers equal-area projection) will give a more accurate representation of the distance than others. To work around this, we can transform our maps between projections, in R we use EPSG codes to do this.
 
 
 In this section we will read and manipulate vector data in R. 
@@ -23,7 +27,7 @@ In this section we will read and manipulate vector data in R.
 * Vector data is commonly stored as a shapefile and can contain either point data or polygon data. 
 * Data contains information attached to each feature, we call these attributes.  
 
-Features can be points (red) representing specific x,y locations, such as a camera sites; polygons (white) representing areas, such as forests or residential areas; and lines (yellow/green and blue) representing continuous linear features, such as roads or rivers
+Features can be points (red) representing specific x,y locations, such as a trees or camera sites; polygons (white) representing areas, such as forests or residential areas; and lines (yellow/green and blue) representing continuous linear features, such as roads or rivers
 
 ![Figure showing polygons, points and lines in the landscape](images/vector_data_image_from_docs_qgis_org.png "Vector data"){width=80%}  
 
