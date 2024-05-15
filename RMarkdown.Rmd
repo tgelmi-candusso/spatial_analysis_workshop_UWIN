@@ -232,26 +232,31 @@ library(terra)
 habitat <- terra::vect("maps/Wildlife_habitat/ECA_Wildlife_Habitat.shp")
 plot(habitat)
 ```
+Let's check the projection before we go forward. It is NAD83 which works well for spatial measurements <>(we should double check the projections used across the document, choose one that we will use for measurements and stick to it)
 
-##add this part here, measuring the area occupied by wildlife habitat
-#estimate surface area of forest and grass
-#convert to equal area projection
-forest <- forest %>% mutate(forest_area_km2 = as.numeric(st_area(forest))/1000000)
-total_forest <- sum(forest$forest_area_km2)
+```{r}
+crs(habitat) #"EPSG:6152"
+```
 
-#estimate area of grass and then estimate area of the different types of leisure urban areas
-grass <- grass %>% mutate(grass_area_km2 = as.numeric(st_area(grass))/1000^2)
-freq_table <- aggregate(grass_area_km2 ~ leisure, data=grass, FUN="sum") #check proportion of urban gree types
+We can estimate the area of each wildlife habitat, and measure the total surface area of wildlife habitat and corridors in the city.
 
+```{r}
+library(ggplot2)
+library(terra)
+habitat$area <- terra::expanse(habitat) #in km2
+total_ar <- sum(habitat$area/1000000)
 
-
+#not knitting complaining about object being vector instead of dataframe
+# ggplot(habitat, aes(fill=area/1000000))+geom_spatvector()+
+#   ggtitle(paste("Seattle: Total wildlife habitat", round(total_ar), "km2")) #24km2 of wildlife habitat sounds right??
+```
 
 The tree dataset comes from [the Seattle open data](https://data-seattlecitygis.opendata.arcgis.com/) and delimits tree crowns which found with LiDAr data. I have cropped this layer to a section of seattle given the document size. We will load and look at the attributes contained within, we can also do this for sf object, by using the str() function.
 
 
 ```{r}
 trees <- st_read("maps/trees_seattle.shp")
-print(trees)
+print(trees, n=3)
 ```
 The dataset includes height with certain confidence levels, as it was obtained from machine learning algorithms, a tree crown radius for which we dont have a unit, and a tree type. Let's do some stats to understand the tree composition of the area we cropped.
 
@@ -311,7 +316,9 @@ If we can also plot on a basemap as we did using ggmap in the points section, bu
 ```{r}
 #library(leaflet)
 trees_T <- vect(trees)
+
 plet(trees_T, "Hgt_Q98", col=c("#00cd00", "#00b300", "#86B049","#7fbf7f", "#008000", "#02471a"), cex=1, lwd=0.1, border="black", fill=1, alpha=0, popup=TRUE, label=FALSE, tiles=c("Streets", "Esri.WorldImagery", "OpenTopoMap"), wrap=TRUE, legend="topleft", collapse=FALSE, map=NULL)
+
 
 ```
 
@@ -412,27 +419,177 @@ plot(grass[,1])
 plot(res_roads[,1])
 ```
 
-We should check projection and transform to the one we want
+We can look at the frequency of each feature attribute within a landscape class. For example what are the diffrent types of grass areas in Seattle and how much area they occupy.
 
 ```{r}
-crs(grass) #= WGS84, EPSG: 4326
-
-grass <- sf::st_transform(grass, crs="EPSG:5070") #we'll use the North America focuses Albers equal-area
-forest <- sf::st_transform(forest, crs="EPSG:5070") 
-res_roads <- sf::st_transform(res_roads, crs="EPSG:5070") 
+sf_use_s2(FALSE)
+grass <- sf::st_transform(grass, crs="EPSG:5070")
+grass <- grass %>% mutate(grass_area_km2 = as.numeric(st_area(grass))/1000^2)
+freq_table <- aggregate(grass_area_km2 ~ leisure, data=grass, FUN="sum") #check proportion of urban gree types
 
 ```
 
-Save polygon layers from sf objects to shapefiles
+We can save the polygons we extracted from OSM as shapefiles.
+
+```{r, eval=FALSE}
+sf::st_write(forest, "maps/Seattle_forest.shp")
+sf::st_write(grass, "maps/Seattle_grass.shp")
+sf::st_write(roads_low_traffic, "maps/Seattle_roads.shp")
+
+```
+
+OR we can convert them as rasters, either using binary values or proportion of pixel covered by the class
 
 ```{r}
-sf::st_write(forest, "E:/OSM_in_R/Seattle_forest.shp")
-sf::st_write(grass, "E:/OSM_in_R/Seattle_grass.shp")
-sf::st_write(roads_low_traffic, "E:/OSM_in_R/Seattle_roads.shp")
-
-
+r <- rast(resolution=0.00025, extent=c(-122.4599,-122.01,  47.39002,47.82995))
+forest_r <- rasterize(forest, r, value=1)
+forest_r <- ifel(is.na(forest_r),0,forest_r) #value has to be 0, not NA for the next to work
+for_prop_n <- aggregate(forest_r, fact=10, fun="mean")
+plot(forest_r)
+plot(for_prop_n)
 ```
 
 ## Raster data
 
+We will focus on three raster datasets, two numerical rasters: Normalized Vegetation density index (NDVI), downloaded directly from [earthexplorer](https://earthexplorer.usgs.gov/), and the global human settlement building density layer  [GHL](https://human-settlement.emergency.copernicus.eu/download.php) and one categorical raster: a land cover map from 2008 from [CONUS](https://www.mrlc.gov/data/nlcd-2008-land-cover-conus) categorizing the landscape in a developed area, and several categories for natural areas
+
+I have previously cropped these rasters in order to keep only Washington state and speed up the computational process. 
+
+To load the rasters we use the rast() function from the terra package.
+
+```{r}
+library(terra)
+NDVI <-rast("maps/NDVI_Seattle.tif")
+BUILT <- rast("maps/BUILT_Seattle.tif")
+LULC <- rast("maps/LULC_Seattle.tif")
+
+```
+
+We will directly reproject the rasters to a common projection. 
+
+```{r}
+NDVI <- project(NDVI, "EPSG:4326")
+BUILT <- project(BUILT, "EPSG:4326")
+LULC <- project(LULC, "EPSG:4326")
+```
+
+We will further crop the Washington state layer to Seattle, using one of the layers we use in the previous section, as a cookie-cutter we will use the forest layer we extracted from OSM read as spatvector.
+
+```{r}
+NDVI_c <- crop(NDVI, vect(forest))
+BUILT_c <- crop(BUILT, vect(forest))
+LULC_c <- crop(LULC, vect(forest))
+plot(NDVI_c)
+plot(BUILT_c)
+plot(LULC_c)
+```
+
+When we are dealing with many rasters, we can stack them together and apply functions directly to all of them, but first they have to perfectly match in terms of extent. So we will first project using one another as a cookie-cutter and then stack. We will stack the numerical rasters only for now and rename them.
+
+```{r}
+NDVI_c <- project(NDVI_c, BUILT_c)
+
+#now we can stack them
+stack <- c(NDVI_c, BUILT_c)
+names(stack) <- c("NDVI","BUILT")
+plot(stack)
+```
+
+Raster layers can be resampled, to increase or decrease resolution. For this we should generate a raster template with the resolution we want. In this case we are decreasing the resolution.
+
+```{r}
+#set template raster with resolution and extent wanted
+r <- rast(resolution=0.001, extent=c(-122.4349, -122.2456, 47.60144, 47.73419 ))
+#resample to the resolution in r, method can be changed 
+stack_r <- resample(stack, r, method="bilinear")
+plot(stack_r)
+```
+
+With rasters we can also do math, the function will be applied to each cell against each overlaying cell. For example if we substract building density from Vegetation density. 
+
+
+```{r}
+stack_diff <- NDVI_c - BUILT_c
+plot(stack_diff)
+```
+
+To change values across the cells following a certain logic, we reclassify the values, let's say we want to categorize a numerical layer from a continuous set of data to value ranges, or if we want to change the names or values of each category in a categorical dataset. 
+
+In this case we will reclassify the land cover map (LULC) to match the classes in another LULC map. 
+
+For this, first I create a table, or a matrix, where we have in one column the original values and in the second column the new values. If we are reclassifying from continuous numerical data to categories, then we will have three columns, the first two for the first and last number of the value range, and the third for the name or value that will indicate that value range category.
+
+We then use the matrix of that table and the function classify() from the terra package, to reclassify our raster.
+
+```{r}
+ctoc <- read.csv("data/reclass_conus2008toconus1938.csv")
+ctoc1 <-as.matrix(ctoc[,1:2])
+LULC_c_rec <- classify(LULC_c,ctoc1)
+LULC_c_rec <- as.factor(LULC_c_rec)
+plot(c(LULC_c, LULC_c_rec))
+```
+
+We should change the colors in the new map to make it comparable to the classes in the original map.
+
+
+```{r}
+library(RColorBrewer)
+cols <- brewer.pal(9, "RdYlGn")
+pal <- colorRampPalette(cols)
+plot(c(LULC_c, LULC_c_rec), col=pal(12))
+plot(LULC_c_rec, col=pal(12))
+```
+
+For better control on the colors representing each land cover class, we can plot the new rasters in ggplot.
+
+First, to plot a raster with ggplot, we convert raster to data frame and fix it a bit 
+
+```{r}
+LULC_df <- as.data.frame(LULC_c_rec, xy = TRUE)
+colnames(LULC_df)<- c("x","y","LULC")
+LULC_df$LULC_num <- as.numeric(LULC_df$LULC)
+head(LULC_df)
+```
+
+Now we can plot using ggplot, using the category value names as numerical
+
+```{r}
+ggplot(data = LULC_df) +
+  geom_raster(aes(x = x, y = y, fill = LULC_num)) +
+  scale_fill_viridis_c() +
+  theme_void() +
+  theme(legend.position = "bottom")+
+  coord_equal() 
+
+```
+
+However, if we plot the values as categorical, we can define better the class labels and their colors.
+
+```{r}
+ggplot(data = LULC_df) +
+  geom_raster(aes(x = x, y = y, fill = LULC)) +
+  scale_fill_manual(values=c("#088da5", "#EC5C3B", "#F88A50", 
+                             "#D4ED88","#AFDC70", "#83C966", "#51B25D", "#1A9850", 
+                             "#FDB768","#FDDB87", "#FEF3AC",
+                             "#F1F9AC", "#D4ED88"),
+                    labels=c("open water",
+                             "urban/developed",
+                             "sand",
+                             "deciduous forest",
+                             "evergreen forest",
+                             "mixed forest",
+                             "grassland", 
+                             "shrubland",
+                             "cultivated cropland",
+                             "hay/pasture",
+                             "herbaceous wetland",
+                             "woody wetland")) +
+  theme_void() +
+  theme(legend.position = "right")+
+  coord_equal() 
+
+```
+
+
+## Case study: Extracting map data for camera trap analysis
 
