@@ -8,3 +8,4 @@ NDVI
 Tree_Canopy
 Washington_state_boundary
 scripts/prepare_maps.R
+maps/trees_seattle_points*

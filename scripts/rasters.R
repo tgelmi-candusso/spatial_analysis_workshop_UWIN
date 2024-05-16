@@ -19,9 +19,10 @@ LULC <- project(LULC, "EPSG:4326")
 
 
 #crop to seattle
-NDVI_c <- crop(NDVI, trees_T)
-BUILT_c <- crop(BUILT, trees_T)
-LULC_c <- crop(LULC, trees_T)
+r <- rast(resolution=0.001, extent=c(-122.4349, -122.2456, 47.60144, 47.73419 ))
+NDVI_c <- crop(NDVI, r)
+BUILT_c <- crop(BUILT, r)
+LULC_c <- crop(LULC, r)
 
 plot(NDVI_c)
 plot(BUILT_c)

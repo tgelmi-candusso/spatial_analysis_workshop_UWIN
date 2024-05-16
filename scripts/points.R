@@ -8,7 +8,7 @@ library(ggplot2)
 # Introduce the data set: All coyote and raccoon captures in Seattle spring 2019
 # through early 2021.
 # Talk about read.csv. This should be familiar
-captures.table <- read.csv("captures.csv")
+captures.table <- read.csv("data/captures.csv")
 
 
 # Introduce the concept of spatial data. Point out that
@@ -33,10 +33,10 @@ captures.utm <- st_transform(captures.spatial,26910)
 # 1. Import non-spatial data
 # 2. Make it spatial using the CRS in which it was saved
 # 3. Reproject it into the CRS you want to use for your analysis
-captures <- read.csv("captures.csv") %>%
+captures <- read.csv("data/captures.csv") %>%
   st_as_sf(coords = c("longitude","latitude"), crs = 4326)
 
-captures.utm <- read.csv("captures.csv") %>%
+captures.utm <- read.csv("data/captures.csv") %>%
   st_as_sf(coords = c("longitude","latitude"), crs = 4326) %>%
   st_transform(26910)
   
