@@ -3,8 +3,8 @@ title: 'Spatial Analysis in R'
 author: "M. Jordan and TA Gelmi-Candusso"
 date: "2024-05-15"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
