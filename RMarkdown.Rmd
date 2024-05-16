@@ -241,14 +241,13 @@ crs(habitat) #"EPSG:6152"
 We can estimate the area of each wildlife habitat, and measure the total surface area of wildlife habitat and corridors in the city.
 
 ```{r}
-library(ggplot2)
-library(terra)
+library(tidyterra)
 habitat$area <- terra::expanse(habitat) #in km2
 total_ar <- sum(habitat$area/1000000)
 
 #not knitting complaining about object being vector instead of dataframe
-# ggplot(habitat, aes(fill=area/1000000))+geom_spatvector()+
-#   ggtitle(paste("Seattle: Total wildlife habitat", round(total_ar), "km2")) #24km2 of wildlife habitat sounds right??
+ggplot(habitat, aes(fill=area/1000000))+geom_spatvector()+
+  ggtitle(paste("Seattle: Total wildlife habitat", round(total_ar), "km2")) #24km2 of wildlife habitat sounds right??
 ```
 
 The tree dataset comes from [the Seattle open data](https://data-seattlecitygis.opendata.arcgis.com/) and delimits tree crowns which found with LiDAr data. I have cropped this layer to a section of seattle given the document size. We will load and look at the attributes contained within, we can also do this for sf object, by using the str() function.
@@ -383,7 +382,7 @@ keys <- unique(osm_kv$key)
 
 Then we can extract the osm data for Seattle. Osm stores data both in several formats including points, lines and polygons, the ones that we are interested for this case are lines and polygons.
 
-```{r}
+```{r, message=FALSE}
 Seattle_pol <- osmextract::oe_get("Seattle",
                              layer = "multipolygons", 
                              extra_tags=keys)
@@ -608,18 +607,19 @@ For this section we will use the points dataset representing the camera trap sit
 
 We will first generate a buffer polygon for each camera trap site, with radius 500m from the camera trap location. For each camera trap site buffer area, We  will measure tree density, tree total crown cover and mean height, road density, total forest and grass surface area, mean vegetation density and built up density. 
 
-Generate buffer areas, and measure total area of each buffer
+### Generate buffer areas, and measure total area of each buffer
 
 ```{r}
 #generate buffer areas around camera traps####
 
 coyotes_NAD <- sf::st_transform(coyotes, crs="EPSG:5070")
 coyotes_buff <- sf::st_buffer(coyotes_NAD, dist=500)
-plot(coyotes_buff)
 
 #estimate buffer area in km2
 coyotes_buff$buffer_area_km2 <- as.numeric(st_area(coyotes_buff))/1000000 #in km2 units
-car.sum <- left_join(car.sum, coyotes_buff) #left_join in case some sites are missing in the main map
+buff_area <- coyotes_buff %>% select("locationid", "buffer_area_km2")
+
+
 
 ```
 
@@ -631,68 +631,112 @@ coyotes_buff_t <- sf::st_transform(coyotes_buff, crs="EPSG:4326")
 
 ```
 
-Estimate road density within each buffer area:
+### Estimate tree density, mean height, and total crown cover (Vector data: points).
 
 ```{r}
+trees_p <- vect("maps/trees_seattle_points_cropped.shp")
+tree.int <- intersect(trees_p, vect(coyotes_buff_t)) #has the
+tree.int$n <- 1
+tree_numbers <- aggregate(n  ~ locationid, data=tree.int, FUN="sum") #check proportion of urban gree types
+#we could do tree density from this
+tree_height <- aggregate(Hgt_Q99  ~ locationid, data=tree.int, FUN="mean") #check proportion of urban gree types
+tree_radius <- aggregate(Radius  ~ locationid, data=tree.int, FUN="sum") #check proportion of urban gree types
+
+tree_stats <- left_join(tree_numbers, buff_area)
+tree_stats$tree_density <-  tree_stats$n / tree_stats$buffer_area_km2
+tree_stats <- left_join(tree_stats, tree_height)
+tree_stats <- left_join(tree_stats, tree_radius)
+
+
+coyotes_buff <- left_join(coyotes_buff, tree_stats)
+
+ggplot(coyotes_buff, aes(fill=tree_density))+ 
+  geom_spatvector()
+```
+
+### Estimate road density within each buffer area (Vector data: lines):
+
+```{r}
+library(dplyr)
+
+##CRS 4326, is that ok for length, I have grass on 5070, we should make these crs more consistent across the document.
 ####estimate road density within buffer ####
 
 #estimate road segment length 
 res_roads$length <- sf::st_length(res_roads)
 
 #intersect buffers with road segments
-car.int <- st_intersection(coyotes_buff, res_roads) #has the
+car.int <- st_intersection(coyotes_buff_t, res_roads) #has the
 car.int$length.int <- sf::st_length(car.int)
 
 #sum all road segment lengths in km within each buffer
 car.sum <- aggregate(length.int ~ locationid, data = car.int, FUN = sum) #total length of roads in  buffer
 car.sum<- car.sum %>% mutate(car_length_km = round(as.numeric(length.int)/1000)) #conver to km
+
+car.sum <- left_join(car.sum, buff_area)
 #do the math for road density (total length/total area)
 car.sum <- car.sum %>% mutate(road_density_km2 = (car_length_km/buffer_area_km2)*100) #Road density is the ratio of the length of the country's total road network to the country's land area per 100 square kilometer
 road_density <- car.sum %>% dplyr::select(locationid, road_density_km2)
 
-```
+coyotes_buff <- left_join(coyotes_buff, road_density)
 
-Estimate total forest and grass surface area:
+ggplot(coyotes_buff, aes(fill=road_density_km2))+ 
+  geom_spatvector()
+
+```
+Can you do the same for primary roads?
+
+### Estimate total forest and grass surface area (Vector data: polygons):
 
 ```{r}
+library(tidyterra)
 ## Estimate total forest and grass surface area ####
 gra.int <- st_intersection(grass, coyotes_buff) #has the
 gra.int <- gra.int %>% mutate(grass_area_km2.int = as.numeric(st_area(gra.int))/1000^2) #recalc area with the new segments
 grass_area <- aggregate(grass_area_km2.int ~ locationid, data = gra.int, FUN = "sum")
+coyotes_buff <- left_join(coyotes_buff, grass_area)
 
-for.int <- st_intersection(forest, coyotes_buff) #has the
+ggplot(coyotes_buff, aes(fill=grass_area_km2.int))+ 
+  geom_spatvector()
+
+
+for.int <- st_intersection(forest, coyotes_buff_t) #has the
 for.int <- for.int %>% mutate(forest_area_km2.int = as.numeric(st_area(for.int))/1000^2) #recalc area with the new segments
 forest_area <- aggregate(forest_area_km2.int ~ locationid, data = for.int, FUN = "sum")
+coyotes_buff <- left_join(coyotes_buff, forest_area)
+ggplot(coyotes_buff, aes(fill=forest_area_km2.int))+ 
+  geom_spatvector()
+
 ```
 
-Estimate tree density, mean height, and total crown cover.
+### Estimate mean vegetation density (NDVI) and mean building density (Raster data):
+
+It is important to change all NDVI values <0 to NA, as these will bias our estimates for buffer areas near the shore
 
 ```{r}
-#estimate number of trees, mean height of trees and mean radius
-#match crs 
-trees <- sf::st_transform(trees, crs="EPSG:5070") #might have to save all files already on this transformation otherwise it can take time we dont want to waste during the workshop
-tree.int <- st_intersection(trees, coyotes_buff) #has the
-writeVector(tree.int, "maps/trees_camera_buffers.shp")
+NDVI <- ifel(NDVI<0, NA, NDVI)
+coyotes_buff_t$NDVI_mean <- extract(NDVI, coyotes_buff_t, fun='mean', na.rm=TRUE)[,2]
 
-##start from here
-tree.int<-st_read("maps/trees_camera_buffers.shp")
-tree.int <- sf::st_transform(tree.int, crs="EPSG:5070")
-tree_numbers <- aggregate(OBJECTID  ~ locationid, data=tree.int, FUN="length") #check proportion of urban gree types
-#we could do tree density from this
-tree_height <- aggregate(Height  ~ locationid, data=tree.int, FUN="mean") #check proportion of urban gree types
-tree_radius <- aggregate(Radius  ~ locationid, data=tree.int, FUN="mean") #check proportion of urban gree types
-#estimate proportion of tree type
-tree_numbers <- aggregate(Type  ~ locationid, data=tree.int, FUN="length") #check proportion of urban gree types
+ggplot(coyotes_buff_t, aes(fill=NDVI_mean))+
+  geom_sf()
+
+BUILT <- ifel(BUILT<0, NA, BUILT)
+coyotes_buff_t$BUILT_mean <- extract(BUILT, coyotes_buff_t, fun='mean', na.rm=TRUE)[,2]
+
+ggplot(coyotes_buff_t, aes(fill=BUILT_mean))+
+  geom_sf()
 
 ```
 
-
-Estimate mean vegetation density (NDVI) and total building density
+Can you compare tree density vs NDVI values in those buffer where we have both datasets? Does NDVI reflect greater tree density? #answer is no.
 
 ```{r}
-ex <- extract(NDVI, coyotes_buff_t, fun='mean', na.rm=TRUE)
 
+comp_table <- left_join(coyotes_buff_t, tree_stats, by = "locationid")
+
+plot(comp_table$NDVI_mean, comp_table$tree_density)
+plot(comp_table$NDVI_mean, comp_table$Radius)
+plot(comp_table$NDVI_mean, comp_table$Hgt_Q99)
 ```
 
-Now we will get analyse the NDVI and built values within the buffer and decide which stats works better for us
 
