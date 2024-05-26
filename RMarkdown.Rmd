@@ -1,6 +1,6 @@
 ---
 title: 'Spatial Analysis in R'
-author: "M. Jordan and TA Gelmi-Candusso"
+author: "TA Gelmi-Candusso & M. Jordan"
 date: "2024-05-15"
 output:
   html_document: default
@@ -24,6 +24,8 @@ Both vector and raster data are planar representations of the world, a 3-dimensi
 ![Figure showing difference between vectors and rasters](images/map_projections.png "Vector data"){width=60%} 
 
 Maps with different projections are not comparable and cannot be overlaid. Therefore, we need to make sure we work always on the same projection when using more maps. In addition, projections can have different coordinate systems and therefore when extracting distance information from maps, some projections (i.e. metric based projections e.g. Mercator projection or the Albers equal-area projection) will give a more accurate representation of the distance than others. To work around this, we can transform our maps between projections, in R we use EPSG codes to do this.
+
+For distance:5070
 
 ##  Vector data  
 
@@ -75,6 +77,7 @@ captures.spatial <- st_as_sf(captures.table,
                      coords = c("longitude","latitude"), 
                      crs = 4326)
 print(head(captures.spatial))
+
 ```
 
 We want our data to be in the NAD83 projection, because we need our data in the UTM coordinate system to be compatible with google map 
@@ -221,6 +224,7 @@ We will first load a shapefile with polygons delimiting urban wildlife habitat a
 We can read a polygon dataset, like points and lines, with either the sf package or the terra package. The main difference is only the speed at which certain processes happen, but most functions are found in equivalent versions in both packages. When we plot a Spatvector from terra, we dont need to specify one attribute, it draws only one map regardless. 
 
 ```{r}
+library(sf)
 habitat_sf <- sf::st_read("maps/Wildlife_habitat/ECA_Wildlife_Habitat.shp")
 plot(habitat_sf[,1])
 title("Sf object")
@@ -248,6 +252,34 @@ total_ar <- sum(habitat$area/1000000)
 #not knitting complaining about object being vector instead of dataframe
 ggplot(habitat, aes(fill=area/1000000))+geom_spatvector()+
   ggtitle(paste("Seattle: Total wildlife habitat", round(total_ar), "km2")) #24km2 of wildlife habitat sounds right??
+```   
+We can generate a distance to wildlife habitat layer by rasterizing the layer and using the terra::distance
+
+```{r}
+#Filter camera trap sites from captures.spatial data.frame
+camera_sites <- captures.spatial %>% 
+  group_by(locationid) %>% 
+  summarise_all(first) %>% 
+  select(locationid)
+
+captures_v <- project(vect(camera_sites), habitat)
+dis_pts <- terra::distance(captures_v, habitat, pairwise = FALSE, unit="km")
+library(hablar)
+dis_pts <- as.data.frame(dis_pts) %>% rowwise() %>%   mutate(min = min_(c_across()))
+camera_sites$distance_to_habitat <- dis_pts$min
+print(camera_sites)
+```
+
+To estimate distance to habitat polygons, we can also generate a raster from the habitat shapefile and generate a distance_to raster where each pixel has a value determining the distance to the closest wildlife habitat
+```{r}
+
+
+rtemplate <- rast(ext=ext(habitat), res=30, crs=crs(habitat)) #note: three key parameters needed, we'll revise this again below
+habitat_r <- rasterize(habitat, rtemplate) #generates raster with 1=habitat null=not habitat. if the layer we are getting distance from is already a raster, we want to make sure it is still a binary raster, with 1 or null values so we'd use this the terra::ifel function to convert values  e.g. terra::ifel(x > 0, 1, NA)
+
+dist_to_hab<-terra::distance(habitat_r)
+plot(dist_to_hab)
+
 ```
 
 The tree dataset comes from [the Seattle open data](https://data-seattlecitygis.opendata.arcgis.com/) and delimits tree crowns which found with LiDAr data. I have cropped this layer to a section of seattle given the document size. We will load and look at the attributes contained within, we can also do this for sf object, by using the str() function.
@@ -302,8 +334,6 @@ trees$rank<- ifelse(trees$OBJECTID %in% tallest_trees$OBJECTID, 1, 0)
 
 ```
 
-
-
 We can plot the trees following the different attributes using plot
 
 ```{r}
@@ -325,16 +355,18 @@ Finally, we can convert the polygons to points, in this case working with polygo
 
 With the points layer of trees I can estimate the size of the treed area we are analyzing by generating a polygon that encloses them, estimating the size of that polygon (the treed area) and then estimate the tree density within that area.
 
-
 ```{r}
-trees_p <- st_centroid(trees) # we can also avoid this and just count the number of trees in total and later on within the buffer
+trees_p <- st_centroid(trees) 
 perimeter <- trees_p %>% 
   summarise() %>% 
   concaveman::concaveman(concavity = 1)
+plot(perimeter)
+
 #check crs before estimating area
 perimeter <- st_transform(perimeter, crs="EPSG:5070")
 treed_area <- st_area(perimeter)
 
+#estimate tree density
 nrow(trees_p)/(as.numeric(treed_area)/1e+6) #in trees/km2
 
 ```
@@ -506,10 +538,13 @@ plot(stack_r)
 
 With rasters we can also do math, the function will be applied to each cell against each overlaying cell. For example if we substract building density from Vegetation density. 
 
+Raster math can be used to add weights to pixels based on other rasters
+
 
 ```{r}
 stack_diff <- NDVI_c - BUILT_c
-plot(stack_diff)
+plot(c(NDVI_c, stack_diff))
+
 ```
 
 To change values across the cells following a certain logic, we reclassify the values, let's say we want to categorize a numerical layer from a continuous set of data to value ranges, or if we want to change the names or values of each category in a categorical dataset. 
@@ -553,6 +588,7 @@ head(LULC_df)
 Now we can plot using ggplot, using the category value names as numerical
 
 ```{r}
+
 ggplot(data = LULC_df) +
   geom_raster(aes(x = x, y = y, fill = LULC_num)) +
   scale_fill_viridis_c() +
@@ -630,7 +666,25 @@ Make sure every layer we need will be the same CRS as the coyote buffer. Note it
 coyotes_buff_t <- sf::st_transform(coyotes_buff, crs="EPSG:4326") 
 
 ```
+### Estimate distance to wildlife habitat (using the distance to raster)
 
+```{r}
+coyotes_NAD_s <- st_transform(coyotes_NAD, crs(dist_to_hab))
+plot(dist_to_hab)
+plot(coyotes_NAD_s[,1], add=TRUE, col="black")
+
+#works with both points as a spatvector 
+terra::extract(dist_to_hab, vect(coyotes_NAD_s))
+#and as a sf spatial dataframe
+extraction<- terra::extract(dist_to_hab, coyotes_NAD_s)
+
+#add values to main table
+
+#bind values from extraction table to original sf object, given id is given by row number. This is to maintain the location ID and avoid issues later on when joining values extracted from different sources
+coyotes_NAD_s$dist_hab <- extraction$layer
+coyotes_buff_t <- left_join(coyotes_buff_t, as.data.frame(coyotes_NAD_s), by="locationid")
+
+```
 ### Estimate tree density, mean height, and total crown cover (Vector data: points).
 
 ```{r}
@@ -728,7 +782,7 @@ ggplot(coyotes_buff_t, aes(fill=BUILT_mean))+
 
 ```
 
-Can you compare tree density vs NDVI values in those buffer where we have both datasets? Does NDVI reflect greater tree density? #answer is no.
+Can you compare tree density vs NDVI values in those buffer where we have both datasets? Does NDVI reflect greater tree density? 
 
 ```{r}
 
@@ -739,4 +793,16 @@ plot(comp_table$NDVI_mean, comp_table$Radius)
 plot(comp_table$NDVI_mean, comp_table$Hgt_Q99)
 ```
 
+The table "coyotes_buff_t" now has everything we need to eventually run stats.
 
+coyotes_buff_t we can run directly the stats we need. 
+
+```{R}
+#with camera trap data we run an occupancy analysis that can acocunt for spatial autocorrelation and other unmet assumptions of a glm, this is just to demonstrate you can do stats directly on sf objects. 
+summary(glm(detections.x ~ BUILT_mean + forest_area_km2.int, data=coyotes_buff_t))
+
+summary(glm(detections.x ~ BUILT_mean + forest_area_km2.int, data=as.data.frame(coyotes_buff_t)))
+
+
+
+```
