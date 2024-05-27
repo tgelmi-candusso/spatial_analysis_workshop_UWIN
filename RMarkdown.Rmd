@@ -1,6 +1,6 @@
 ---
 title: 'Spatial Analysis in R'
-author: "TA Gelmi-Candusso & M. Jordan"
+author: "M. Jordan, TA Gelmi-Candusso"
 date: "2024-05-15"
 output:
   html_document: default
