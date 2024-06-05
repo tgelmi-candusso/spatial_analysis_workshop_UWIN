@@ -442,14 +442,20 @@ sum(forest_sf$area)
 <!-- With rasters we can also do math, the function will be applied to each cell against each overlaying cell. For example if we substract building density from Vegetation density.  -->
 
 
-<!-- ```{r} -->
-<!-- stack_diff <- NDVI_c - BUILT_c -->
-<!-- plot(stack_diff) -->
-<!-- ``` -->
+```{r}
+trees_p <- st_centroid(trees) 
+perimeter <- trees_p %>% 
+  summarise() %>% 
+  concaveman::concaveman(concavity = 1)
+plot(perimeter)
 
-<!-- To change values across the cells following a certain logic, we reclassify the values, let's say we want to categorize a numerical layer from a continuous set of data to value ranges, or if we want to change the names or values of each category in a categorical dataset.  -->
+#check crs before estimating area
+perimeter <- st_transform(perimeter, crs="EPSG:5070")
+treed_area <- st_area(perimeter)
 
-<!-- In this case we will reclassify the land cover map (LULC) to match the classes in another LULC map.  -->
+#estimate tree density
+nrow(trees_p)/(as.numeric(treed_area)/1e+6) #in trees/km2
+```
 
 <!-- For this, first I create a table, or a matrix, where we have in one column the original values and in the second column the new values. If we are reclassifying from continuous numerical data to categories, then we will have three columns, the first two for the first and last number of the value range, and the third for the name or value that will indicate that value range category. -->
 
@@ -674,4 +680,16 @@ sum(forest_sf$area)
 <!-- # plot(comp_table$NDVI_mean, comp_table$Hgt_Q99) -->
 <!-- ``` -->
 
+The table "coyotes_buff_t" now has everything we need to eventually run stats.
 
+coyotes_buff_t we can run directly the stats we need. 
+
+```{R}
+#with camera trap data we run an occupancy analysis that can acocunt for spatial autocorrelation and other unmet assumptions of a glm, this is just to demonstrate you can do stats directly on sf objects. 
+summary(glm(detections.x ~ BUILT_mean + forest_area_km2.int, data=coyotes_buff_t))
+
+summary(glm(detections.x ~ BUILT_mean + forest_area_km2.int, data=as.data.frame(coyotes_buff_t)))
+
+
+
+```
