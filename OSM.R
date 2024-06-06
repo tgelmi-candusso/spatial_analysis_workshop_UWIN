@@ -17,7 +17,7 @@ wa_pol <- st_make_valid(wa_pol)
 forest <- wa_pol %>% dplyr::filter(landuse %in% c("forest") |
                                                     natural  %in% c("wood") |
                                                     boundary %in% c("forest", "forest_compartment"))
-forest <- st_crop(forest,xmin = -122.5, ymin = 47.35, xmax = -122.0, ymax = 47.8)
+forest <- st_crop(forest,xmin = -122.5, ymin = 47.35, xmax = -121.9, ymax = 47.8)
 
 # Filter then crop the grass layer
 grass <- wa_pol %>% dplyr::filter(landuse %in% c("park", "grass", "cemetery", "greenfield", "recreation_ground", "winter_sports")|
@@ -27,9 +27,9 @@ grass <- wa_pol %>% dplyr::filter(landuse %in% c("park", "grass", "cemetery", "g
                                          sport %in% c("soccer")|
                                          power %in% c("substation")|
                                          surface %in% c("grass"))
-grass <- st_crop(grass,xmin = -122.5, ymin = 47.35, xmax = -122.0, ymax = 47.8)
+grass <- st_crop(grass,xmin = -122.5, ymin = 47.35, xmax = -121.9, ymax = 47.8)
 
 
 # Save these as shapefiles
-st_write(forest, "maps/Seattle_forest.shp")
-st_write(grass, "maps/Seattle_grass.shp")
+st_write(forest, "maps/Seattle_forest.shp",append=FALSE)
+st_write(grass, "maps/Seattle_grass.shp",append=FALSE)

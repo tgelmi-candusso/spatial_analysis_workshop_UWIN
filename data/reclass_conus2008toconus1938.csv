@@ -1,17 +1,17 @@
-original,new,new_label
-11,1,open water
-12,17,perennial ice/snow
-21,2,urban/developed
-22,2,urban/developed
-23,2,urban/developed
-24,2,urban/developed
-31,7,sand
-41,8,deciduous forest
-42,9,evergreen forest
-43,10,mixed forest
-52,12,shrubland
-71,11,grassland
-81,14,hay/pasture
-82,13,cultivated cropland
-90,16,woody wetland
-95,15,herbaceous wetland
+id,cover
+11,Open Water
+12,Perrenial Ice/Snow
+21,"Developed, Open Space"
+22,"Developed, Low Intensity"
+23,"Developed, Medium Intensity"
+24,"Developed, High Intensity"
+31,Barren Land
+41,Deciduous Forest
+42,Evergreen Forest
+43,Mixed Forest
+52,Shrub/Scrub
+71,Grassland
+81,Pasture/Hay
+82,Cultivated Crops
+90,Woody Wetlands
+95,Herbaceous Wetland

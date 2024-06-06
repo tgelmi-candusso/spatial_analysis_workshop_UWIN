@@ -78,6 +78,7 @@ We have also included `ggplot2` and the `ggmap` package, which has
 useful mapping functions on top of `ggplot2`.
 
     library(dplyr)
+    library(tidyr)
     library(sf)
     library(terra)
     library(ggplot2)
@@ -265,7 +266,7 @@ at the eastern end of the study area. If we use a bounding box that
 shows the whole study area, the code will look like this:
 
     seattle <- get_map(location = c(left = -122.5, bottom = 47.35,
-                                    right = -122.0, top = 47.8),
+                                    right = -121.9, top = 47.8),
                        source ="google", api_key = my_api)
     ggmap(seattle)
 
@@ -330,6 +331,10 @@ Solution</a>
             scale_size_continuous(breaks=seq(100, 500, by=100))
 
 </details>
+
+Now that you’ve made a simple map with point data, it’s time to move on
+to lines.
+
 ## Vector data: lines
 
 In this section, you will learn the following methods for working with
@@ -387,7 +392,7 @@ than the `ggmap` function (e.g., “xmin” instead of “left”) but the
 numbers are the same.
 
     roads.clip <- st_crop(roads.lat, xmin = -122.5, ymin = 47.35,
-                                     xmax = -122.0, ymax = 47.8)
+                                     xmax = -121.9, ymax = 47.8)
 
 Although the WGS84 CRS is widely useful, we are going to convert our
 data to a different CRS for the rest of the analysis. The CRS we will
@@ -444,9 +449,9 @@ attribute, with the `aggregate()` function.
     print(road_lengths)
 
     ##   RTTYP   length
-    ## 1     I 262113.6
-    ## 2     M 410247.9
-    ## 3     S 451552.2
+    ## 1     I 280107.5
+    ## 2     M 471699.1
+    ## 3     S 512049.7
 
 Sometimes it is useful to convert lines to polygons, for example when we
 want a better representation of the area a linear feature occupies. This
@@ -519,10 +524,10 @@ forest layers and cropped to the study area extent.
     ## Reading layer `Seattle_forest' from data source 
     ##   `/Users/jordanma/work/research/analysis/sucp/uwin_workshop/spatial_analysis_workshop_UWIN/maps/Seattle_forest.shp' 
     ##   using driver `ESRI Shapefile'
-    ## Simple feature collection with 3268 features and 44 fields
+    ## Simple feature collection with 3388 features and 44 fields
     ## Geometry type: MULTIPOLYGON
     ## Dimension:     XY
-    ## Bounding box:  xmin: -122.5 ymin: 47.35 xmax: -122 ymax: 47.80027
+    ## Bounding box:  xmin: -122.5 ymin: 47.35 xmax: -121.9 ymax: 47.80039
     ## Geodetic CRS:  WGS 84
 
 To view the data, use the `plot` function. To avoid making one map for
@@ -570,7 +575,7 @@ km^2 by dividing by 1000000.
     forest_sf$area <- as.numeric(sf::st_area(forest_sf) / 1000000)
     sum(forest_sf$area)
 
-    ## [1] 222.7351
+    ## [1] 398.6176
 
 ### Polygons with `terra`
 
@@ -598,231 +603,408 @@ Calculate the area of forest cover.
     forest_terra$area <- as.numeric(terra::expanse(forest_terra) / 1000000)
     sum(forest_sf$area)
 
-    ## [1] 222.7351
+    ## [1] 398.6176
 
-<!-- ## Raster data -->
-<!-- We will focus on three raster datasets, two numerical rasters: Normalized Vegetation density index (NDVI), downloaded directly from [earthexplorer](https://earthexplorer.usgs.gov/), and the global human settlement building density layer  [GHL](https://human-settlement.emergency.copernicus.eu/download.php) and one categorical raster: a land cover map from 2008 from [CONUS](https://www.mrlc.gov/data/nlcd-2008-land-cover-conus) categorizing the landscape in a developed area, and several categories for natural areas -->
-<!-- I have previously cropped these rasters in order to keep only Washington state and speed up the computational process.  -->
-<!-- To load the rasters we use the rast() function from the terra package. -->
-<!-- ```{r} -->
-<!-- library(terra) -->
-<!-- NDVI <-rast("maps/NDVI_Seattle.tif") -->
-<!-- BUILT <- rast("maps/BUILT_Seattle.tif") -->
-<!-- LULC <- rast("maps/LULC_Seattle.tif") -->
-<!-- ``` -->
-<!-- We will directly reproject the rasters to a common projection.  -->
-<!-- ```{r} -->
-<!-- NDVI <- project(NDVI, "EPSG:4326") -->
-<!-- BUILT <- project(BUILT, "EPSG:4326") -->
-<!-- LULC <- project(LULC, "EPSG:4326") -->
-<!-- ``` -->
-<!-- We will further crop the Washington state layer to Seattle, using one of the layers we use in the previous section, as a cookie-cutter we will use the forest layer we extracted from OSM read as spatvector. -->
-<!-- ```{r} -->
-<!-- NDVI_c <- crop(NDVI, vect(forest)) -->
-<!-- BUILT_c <- crop(BUILT, vect(forest)) -->
-<!-- LULC_c <- crop(LULC, vect(forest)) -->
-<!-- plot(NDVI_c) -->
-<!-- plot(BUILT_c) -->
-<!-- plot(LULC_c) -->
-<!-- ``` -->
-<!-- When we are dealing with many rasters, we can stack them together and apply functions directly to all of them, but first they have to perfectly match in terms of extent. So we will first project using one another as a cookie-cutter and then stack. We will stack the numerical rasters only for now and rename them. -->
-<!-- ```{r} -->
-<!-- NDVI_c <- project(NDVI_c, BUILT_c) -->
-<!-- #now we can stack them -->
-<!-- stack <- c(NDVI_c, BUILT_c) -->
-<!-- names(stack) <- c("NDVI","BUILT") -->
-<!-- plot(stack) -->
-<!-- ``` -->
-<!-- Raster layers can be resampled, to increase or decrease resolution. For this we should generate a raster template with the resolution we want. In this case we are decreasing the resolution. -->
-<!-- ```{r} -->
-<!-- #set template raster with resolution and extent wanted -->
-<!-- r <- rast(resolution=0.001, extent=c(-122.4349, -122.2456, 47.60144, 47.73419 )) -->
-<!-- #resample to the resolution in r, method can be changed  -->
-<!-- stack_r <- resample(stack, r, method="bilinear") -->
-<!-- plot(stack_r) -->
-<!-- ``` -->
-<!-- With rasters we can also do math, the function will be applied to each cell against each overlaying cell. For example if we substract building density from Vegetation density.  -->
-<!-- ```{r} -->
-<!-- stack_diff <- NDVI_c - BUILT_c -->
-<!-- plot(stack_diff) -->
-<!-- ``` -->
-<!-- To change values across the cells following a certain logic, we reclassify the values, let's say we want to categorize a numerical layer from a continuous set of data to value ranges, or if we want to change the names or values of each category in a categorical dataset.  -->
-<!-- In this case we will reclassify the land cover map (LULC) to match the classes in another LULC map.  -->
-<!-- For this, first I create a table, or a matrix, where we have in one column the original values and in the second column the new values. If we are reclassifying from continuous numerical data to categories, then we will have three columns, the first two for the first and last number of the value range, and the third for the name or value that will indicate that value range category. -->
-<!-- We then use the matrix of that table and the function classify() from the terra package, to reclassify our raster. -->
-<!-- ```{r} -->
-<!-- ctoc <- read.csv("data/reclass_conus2008toconus1938.csv") -->
-<!-- ctoc1 <-as.matrix(ctoc[,1:2]) -->
-<!-- LULC_c_rec <- classify(LULC_c,ctoc1) -->
-<!-- LULC_c_rec <- as.factor(LULC_c_rec) -->
-<!-- plot(c(LULC_c, LULC_c_rec)) -->
-<!-- ``` -->
-<!-- We should change the colors in the new map to make it comparable to the classes in the original map. -->
-<!-- ```{r} -->
-<!-- library(RColorBrewer) -->
-<!-- cols <- brewer.pal(9, "RdYlGn") -->
-<!-- pal <- colorRampPalette(cols) -->
-<!-- plot(c(LULC_c, LULC_c_rec), col=pal(12)) -->
-<!-- plot(LULC_c_rec, col=pal(12)) -->
-<!-- ``` -->
-<!-- For better control on the colors representing each land cover class, we can plot the new rasters in ggplot. -->
-<!-- First, to plot a raster with ggplot, we convert raster to data frame and fix it a bit  -->
-<!-- ```{r} -->
-<!-- LULC_df <- as.data.frame(LULC_c_rec, xy = TRUE) -->
-<!-- colnames(LULC_df)<- c("x","y","LULC") -->
-<!-- LULC_df$LULC_num <- as.numeric(LULC_df$LULC) -->
-<!-- head(LULC_df) -->
-<!-- ``` -->
-<!-- Now we can plot using ggplot, using the category value names as numerical -->
-<!-- ```{r} -->
-<!-- ggplot(data = LULC_df) + -->
-<!--   geom_raster(aes(x = x, y = y, fill = LULC_num)) + -->
-<!--   scale_fill_viridis_c() + -->
-<!--   theme_void() + -->
-<!--   theme(legend.position = "bottom")+ -->
-<!--   coord_equal()  -->
-<!-- ``` -->
-<!-- However, if we plot the values as categorical, we can define better the class labels and their colors. -->
-<!-- ```{r} -->
-<!-- lulc_map <- ggplot(data = LULC_df) + -->
-<!--   geom_raster(aes(x = x, y = y, fill = LULC)) + -->
-<!--   scale_fill_manual(values=c("#088da5", "#EC5C3B", "#F88A50",  -->
-<!--                              "#D4ED88","#AFDC70", "#83C966", "#51B25D", "#1A9850",  -->
-<!--                              "#FDB768","#FDDB87", "#FEF3AC", -->
-<!--                              "#F1F9AC", "#D4ED88"), -->
-<!--                     labels=c("open water", -->
-<!--                              "urban/developed", -->
-<!--                              "sand", -->
-<!--                              "deciduous forest", -->
-<!--                              "evergreen forest", -->
-<!--                              "mixed forest", -->
-<!--                              "grassland",  -->
-<!--                              "shrubland", -->
-<!--                              "cultivated cropland", -->
-<!--                              "hay/pasture", -->
-<!--                              "herbaceous wetland", -->
-<!--                              "woody wetland")) + -->
-<!--   theme_void() + -->
-<!--   theme(legend.position = "right")+ -->
-<!--   coord_equal()  -->
-<!-- lulc_map -->
-<!-- ``` -->
-<!-- We can plot the camera sites and the coyote detections on to the lulc map -->
-<!-- ```{r} -->
-<!-- lulc_map + -->
-<!--   geom_sf(data=captures.spatial, inherit.aes = FALSE) -->
-<!-- lulc_map + -->
-<!--   geom_sf(data = coyotes, inherit.aes = FALSE, aes(size = detections)) + -->
-<!--   ggtitle("Coyote detections") + -->
-<!--   labs(size = "Detection frequency") + -->
-<!--   scale_size_continuous(breaks=seq(100, 500, by=100)) -->
-<!-- ``` -->
-<!-- ## Case study: Extracting map data for camera trap analysis -->
-<!-- For this section we will use the points dataset representing the camera trap sites, and the geospatial data in the vector and raster section, to extract the geospatial data relevant to each camera trap site.  -->
-<!-- We will first generate a buffer polygon for each camera trap site, with radius 500m from the camera trap location. For each camera trap site buffer area, We  will measure tree density, tree total crown cover and mean height, road density, total forest and grass surface area, mean vegetation density and built up density.  -->
-<!-- ### Generate buffer areas, and measure total area of each buffer -->
-<!-- ```{r} -->
-<!-- #generate buffer areas around camera traps#### -->
-<!-- coyotes_NAD <- sf::st_transform(coyotes, crs="EPSG:5070") -->
-<!-- coyotes_buff <- sf::st_buffer(coyotes_NAD, dist=500) -->
-<!-- #estimate buffer area in km2 -->
-<!-- coyotes_buff$buffer_area_km2 <- as.numeric(st_area(coyotes_buff))/1000000 #in km2 units -->
-<!-- buff_area <- coyotes_buff %>% select("locationid", "buffer_area_km2") -->
-<!-- ``` -->
-<!-- Make sure every layer we need will be the same CRS as the coyote buffer. Note it is easier and more reliable to reproject vector data than raster data so always reproject vector data when you have a choice. -->
-<!-- ```{r} -->
-<!-- coyotes_buff_t <- sf::st_transform(coyotes_buff, crs="EPSG:4326")  -->
-<!-- ``` -->
-<!-- ### Estimate tree density, mean height, and total crown cover (Vector data: points). -->
-<!-- ```{r} -->
-<!-- # trees_p <- vect("maps/trees_seattle_points_cropped.shp") -->
-<!-- # tree.int <- intersect(trees_p, vect(coyotes_buff_t)) #has the -->
-<!-- # tree.int$n <- 1 -->
-<!-- # tree_numbers <- aggregate(n  ~ locationid, data=tree.int, FUN="sum") #check proportion of urban gree types -->
-<!-- # #we could do tree density from this -->
-<!-- # tree_height <- aggregate(Hgt_Q99  ~ locationid, data=tree.int, FUN="mean") #check proportion of urban gree types -->
-<!-- # tree_radius <- aggregate(Radius  ~ locationid, data=tree.int, FUN="sum") #check proportion of urban gree types -->
-<!-- #  -->
-<!-- # tree_stats <- left_join(tree_numbers, buff_area) -->
-<!-- # tree_stats$tree_density <-  tree_stats$n / tree_stats$buffer_area_km2 -->
-<!-- # tree_stats <- left_join(tree_stats, tree_height) -->
-<!-- # tree_stats <- left_join(tree_stats, tree_radius) -->
-<!-- #  -->
-<!-- #  -->
-<!-- # coyotes_buff <- left_join(coyotes_buff, tree_stats) -->
-<!-- #  -->
-<!-- # ggplot(coyotes_buff, aes(fill=tree_density))+  -->
-<!-- #   geom_spatvector() -->
-<!-- ``` -->
-<!-- ### Estimate road density within each buffer area (Vector data: lines): -->
-<!-- ```{r} -->
-<!-- # library(dplyr) -->
-<!-- #  -->
-<!-- # ##CRS 4326, is that ok for length, I have grass on 5070, we should make these crs more consistent across the document. -->
-<!-- # ####estimate road density within buffer #### -->
-<!-- #  -->
-<!-- # #estimate road segment length  -->
-<!-- # res_roads$length <- sf::st_length(res_roads) -->
-<!-- #  -->
-<!-- # #intersect buffers with road segments -->
-<!-- # car.int <- st_intersection(coyotes_buff_t, res_roads) #has the -->
-<!-- # car.int$length.int <- sf::st_length(car.int) -->
-<!-- #  -->
-<!-- # #sum all road segment lengths in km within each buffer -->
-<!-- # car.sum <- aggregate(length.int ~ locationid, data = car.int, FUN = sum) #total length of roads in  buffer -->
-<!-- # car.sum<- car.sum %>% mutate(car_length_km = round(as.numeric(length.int)/1000)) #conver to km -->
-<!-- #  -->
-<!-- # car.sum <- left_join(car.sum, buff_area) -->
-<!-- # #do the math for road density (total length/total area) -->
-<!-- # car.sum <- car.sum %>% mutate(road_density_km2 = (car_length_km/buffer_area_km2)*100) #Road density is the ratio of the length of the country's total road network to the country's land area per 100 square kilometer -->
-<!-- # road_density <- car.sum %>% dplyr::select(locationid, road_density_km2) -->
-<!-- #  -->
-<!-- # coyotes_buff <- left_join(coyotes_buff, road_density) -->
-<!-- #  -->
-<!-- # ggplot(coyotes_buff, aes(fill=road_density_km2))+  -->
-<!-- #   geom_spatvector() -->
-<!-- ``` -->
-<!-- Can you do the same for primary roads? -->
-<!-- ### Estimate total forest and grass surface area (Vector data: polygons): -->
-<!-- ```{r} -->
-<!-- # library(tidyterra) -->
-<!-- # ## Estimate total forest and grass surface area #### -->
-<!-- # gra.int <- st_intersection(grass, coyotes_buff) #has the -->
-<!-- # gra.int <- gra.int %>% mutate(grass_area_km2.int = as.numeric(st_area(gra.int))/1000^2) #recalc area with the new segments -->
-<!-- # grass_area <- aggregate(grass_area_km2.int ~ locationid, data = gra.int, FUN = "sum") -->
-<!-- # coyotes_buff <- left_join(coyotes_buff, grass_area) -->
-<!-- #  -->
-<!-- # ggplot(coyotes_buff, aes(fill=grass_area_km2.int))+  -->
-<!-- #   geom_spatvector() -->
-<!-- #  -->
-<!-- #  -->
-<!-- # for.int <- st_intersection(forest, coyotes_buff_t) #has the -->
-<!-- # for.int <- for.int %>% mutate(forest_area_km2.int = as.numeric(st_area(for.int))/1000^2) #recalc area with the new segments -->
-<!-- # forest_area <- aggregate(forest_area_km2.int ~ locationid, data = for.int, FUN = "sum") -->
-<!-- # coyotes_buff <- left_join(coyotes_buff, forest_area) -->
-<!-- # ggplot(coyotes_buff, aes(fill=forest_area_km2.int))+  -->
-<!-- #   geom_spatvector() -->
-<!-- ``` -->
-<!-- ### Estimate mean vegetation density (NDVI) and mean building density (Raster data): -->
-<!-- It is important to change all NDVI values <0 to NA, as these will bias our estimates for buffer areas near the shore -->
-<!-- ```{r} -->
-<!-- # NDVI <- ifel(NDVI<0, NA, NDVI) -->
-<!-- # coyotes_buff_t$NDVI_mean <- extract(NDVI, coyotes_buff_t, fun='mean', na.rm=TRUE)[,2] -->
-<!-- #  -->
-<!-- # ggplot(coyotes_buff_t, aes(fill=NDVI_mean))+ -->
-<!-- #   geom_sf() -->
-<!-- #  -->
-<!-- # BUILT <- ifel(BUILT<0, NA, BUILT) -->
-<!-- # coyotes_buff_t$BUILT_mean <- extract(BUILT, coyotes_buff_t, fun='mean', na.rm=TRUE)[,2] -->
-<!-- #  -->
-<!-- # ggplot(coyotes_buff_t, aes(fill=BUILT_mean))+ -->
-<!-- #   geom_sf() -->
-<!-- ``` -->
-<!-- Can you compare tree density vs NDVI values in those buffer where we have both datasets? Does NDVI reflect greater tree density? #answer is no. -->
-<!-- ```{r} -->
-<!-- # comp_table <- left_join(coyotes_buff_t, tree_stats, by = "locationid") -->
-<!-- #  -->
-<!-- # plot(comp_table$NDVI_mean, comp_table$tree_density) -->
-<!-- # plot(comp_table$NDVI_mean, comp_table$Radius) -->
-<!-- # plot(comp_table$NDVI_mean, comp_table$Hgt_Q99) -->
-<!-- ``` -->
+## Raster data
+
+In this section, you will learn the following methods for working with
+raster data
+
+1.  Import raster data and re-project it
+2.  Crop a raster based on another spatial data layer
+3.  Combine multiple rasters into one stack
+4.  Perform calculations with rasters
+
+We will focus on three raster datasets, two numerical rasters:
+Normalized Vegetation density index (NDVI), downloaded directly from
+[EarthExplorer](https://earthexplorer.usgs.gov/), and the global human
+settlement building density layer
+[GHSL](https://human-settlement.emergency.copernicus.eu/download.php).
+We will also use one categorical raster: a land use / land cover map
+from [the 2008 USGS Land Cover
+Database](https://www.mrlc.gov/data/nlcd-2008-land-cover-conus), which
+categorizes the landscape into several categories for developed area and
+natural areas.
+
+We have previously cropped these rasters in order to keep only
+Washington state and speed up the computational process.
+
+To load the rasters we use the `rast()` function from the `terra`
+package.
+
+    NDVI <-rast("maps/NDVI_WA.tif")
+    BUILT <- rast("maps/BUILT_WA.tif")
+    LULC <- rast("maps/LULC_WA.tif")
+
+We will directly reproject the rasters to a common projection. Be
+patient: the land use layer takes a little while to re-project.
+
+    NDVI <- project(NDVI, "EPSG:26910")
+    BUILT <- project(BUILT, "EPSG:26910")
+    LULC <- project(LULC, "EPSG:26910")
+
+    ## |---------|---------|---------|---------|=========================================                                          
+
+We will further crop the Washington state layer to the extent of our
+study area using one of the layers we created in the previous section as
+a cookie-cutter. Let’s use the forest layer we extracted from OSM read
+as a Spatvector.
+
+    NDVI_c <- crop(NDVI, forest_terra)
+    BUILT_c <- crop(BUILT, forest_terra)
+    LULC_c <- crop(LULC, forest_terra)
+
+    plot(NDVI_c)
+
+![](RMarkdown_files/figure-markdown_strict/unnamed-chunk-33-1.png)
+
+    plot(BUILT_c)
+
+![](RMarkdown_files/figure-markdown_strict/unnamed-chunk-34-1.png)
+
+The first two rasters contain numerical data only – each cell describes
+a quantity that is measurable on a continuous scale. Each value in the
+land use data, on the other hand, corresponds to a specific type of
+cover based on [this
+legend](https://www.mrlc.gov/data/legends/national-land-cover-database-class-legend-and-description).
+Because our data also has the auxilliary file `LULC_WA.tif.aux.xml`, we
+can automaticaly see the translation between the numerical values in the
+raster and their corresponding category names. If we didn’t have this
+file, there are methods to classify raster data into categories,
+although that is beyond the scope of this tutorial.
+
+    plot(LULC_c)
+
+![](RMarkdown_files/figure-markdown_strict/unnamed-chunk-35-1.png)
+
+When we are dealing with many rasters, we can stack them together and
+apply functions directly to all of them, but first they have to
+perfectly match in terms of extent. We will first project one using
+another as a cookie-cutter and then stack. We will stack the numerical
+rasters only for now and rename them.
+
+    NDVI_c <- project(NDVI_c, BUILT_c)
+
+    #now we can stack them
+    stack <- c(NDVI_c, BUILT_c)
+    names(stack) <- c("NDVI","BUILT")
+    plot(stack)
+
+![](RMarkdown_files/figure-markdown_strict/unnamed-chunk-36-1.png)
+
+With rasters we can also do math, the function will be applied to each
+cell against each overlaying cell. For example if we substract building
+density from vegetation density. This technique is useful for
+comparisons among similar rasters, for example comparing NDVI between
+two time periods.
+
+    stack_diff <- NDVI_c - BUILT_c
+    plot(stack_diff)
+
+![](RMarkdown_files/figure-markdown_strict/unnamed-chunk-37-1.png)
+
+If we want to have more control over the map and add more layers, we can
+use `ggplot`. To plot a raster with `ggplot`, we first need to convert
+the raster to a data frame. The `xy=TRUE` argument when we create the
+data frame saves the coordinates of each pixel in the raster.
+
+    LULC_df <- as.data.frame(LULC_c, xy=TRUE)
+    names(LULC_df) <- c("x","y","LandCover")
+    ggplot(LULC_df) +
+      geom_raster(aes(x = x, y = y, fill = LandCover))
+
+![](RMarkdown_files/figure-markdown_strict/unnamed-chunk-38-1.png)
+
+Yikes! That’s probably not what you were hoping for. The downside of
+converting our data to a data frame is that we lost our nice color
+scheme for the categories. We will need to recreate that color map as a
+data table. We’ve looked up the colors from the original map and created
+a new data table that identifies the correct color for each land cover
+category.
+
+    lulc_colors <- data.frame(LandCover = c("Open Water", "Perennial Ice/Snow", 
+                                            "Developed, Open Space", "Developed, Low Intensity", 
+                                            "Developed, Medium Intensity", 
+                                            "Developed, High Intensity", 
+                                            "Barren Land (Rock/Sand/Clay)", "Deciduous Forest", 
+                                            "Evergreen Forest", "Mixed Forest", "Shrub/Scrub", 
+                                            "Grassland/Herbaceous", "Pasture/Hay", "Cultivated Crops", 
+                                            "Woody Wetlands", "Emergent Herbaceous Wetlands"),
+                              color = c("#466B9F", "#D1DEF8", "#DEC5C5", "#D99282",
+                                        "#EB0000", "#AB0000", "#B3AC9F", "#68AB5F", 
+                                        "#1C6330", "#B5C58F", "#CCBA7C", "#E3E3C2", 
+                                        "#CACA78", "#E8D1D1", "#DCD93D", "#A8EBEB"))
+    color_map <- setNames(lulc_colors$color,lulc_colors$LandCover)
+
+We’ll save our map this time before printing it.
+
+    lulc_map <- ggplot(LULC_df) +
+      geom_raster(aes(x = x, y = y, fill = LandCover)) +
+      scale_fill_manual(values = color_map)
+    lulc_map
+
+![](RMarkdown_files/figure-markdown_strict/unnamed-chunk-40-1.png)
+
+We can plot the coyote detections on to our map.
+
+    lulc_map +
+      geom_sf(data = coyotes, inherit.aes = FALSE, aes(size = detections)) +
+      ggtitle("Coyote detections") +
+      labs(size = "Detection frequency") +
+      scale_size_continuous(breaks=seq(100, 500, by=100)) +
+      xlab("UTM E") + ylab("UTM N")
+
+![](RMarkdown_files/figure-markdown_strict/unnamed-chunk-41-1.png)
+
+Oh no! What happened? If you squint, you can see a tiny map of Seattle
+in the upper right corner. This happened because our coyote layer is
+still in WGS 84, but the land use map is in UTM Zone 10N. The important
+point here is that if your projections don’t line up, you may still get
+a result, but it won’t be at all what you expect. Let’s re-project the
+coyote data then recreate this map so it looks nice. Try those two steps
+yourself before checking the answer in the space below (web) or the next
+page (PDF).
+
+<details closed>
+<summary>
+Solution</a>
+</summary>
+
+      coyotes_utm <- st_transform(coyotes, crs = "EPSG:26910")
+
+      lulc_map +
+          geom_sf(data = coyotes_utm, inherit.aes = FALSE, aes(size = detections)) +
+          ggtitle("Coyote detections") +
+          labs(size = "Detection frequency") +
+          scale_size_continuous(breaks=seq(100, 500, by=100)) +
+          xlab("UTM E") + ylab("UTM N")
+
+</details>
+
+![](RMarkdown_files/figure-markdown_strict/unnamed-chunk-42-1.png)
+
+# Case study: Extracting map data for camera trap analysis
+
+This section will pull everything together. You will use some of the
+layers from the previous parts of the tutorial to extract environmental
+covariates then build models using your detection data. This case study
+shows how integrating your spatial analysis into R allows you to perform
+a complete analysis in one setting instead of bouncing back and forth
+between GIS and R.
+
+In this section you will do the following:
+
+1.  Import data for a spatial analysis
+2.  Get all your data layers into the same projection
+3.  Buffer a camera trap site
+4.  Extract environmental covariates from this buffer
+5.  Run a simple regression model with camera data
+
+For this section we will use the points dataset representing the camera
+trap sites, and the geospatial data in the vector and raster section, to
+extract the geospatial data relevant to each camera trap site. Some of
+the steps in the next section are redundant to work you did earlier in
+the tutorial, but we wanted to put everything in this case study that
+you would need to perform the analysis from start to finish but with
+fewer explanatory details.
+
+We will first generate a buffer polygon for each camera site, with
+radius 500m from the camera trap location. For each camera trap buffer,
+we will measure road density, total forest and grass surface area, and
+mean vegetation and built up density. **We will use `sf` for all vector
+data and `terra` for rasters.**
+
+## Import data and get all layers in the same CRS (EPSG:26910)
+
+### Camera and capture data
+
+When we make the spatial data layer, we need to create it with EPSG:4326
+because the data are in latitude / longitude. We then transform it to
+the correct CRS. By chaining together the commands with pipes, we can
+create our layers in one step without creating intermediate data frames.
+
+    # Import all captures and set CRS
+    captures <- read.csv("data/captures.csv") %>%
+      st_as_sf(coords = c("longitude","latitude"), 
+               crs = 4326) %>%
+      st_transform(crs="EPSG:26910")
+
+Get a spatial data frame of all coyote captures that includes locations
+that have 0 captures.
+
+    # Create a data frame with all locations
+    all_locations <- select(captures,locationid) %>% 
+      distinct()
+
+    # Filter captures for coyotes and summarize by location
+    # Converting it to a data frame drops the spatial component from one of the data sets
+    coyote_temp <- as.data.frame(filter(captures, speciesname == "Canis latrans")) %>%
+      group_by(locationid) %>%
+      summarize(detections = n(), .groups = 'drop')
+
+    # Left join with all locations to include the locations with 0 captures
+    coyotes <- all_locations %>%
+      left_join(coyote_temp, by = "locationid") %>%
+      replace_na(list(detections = 0))
+
+### Roads, forest, and grass
+
+    roads <- st_read("maps/roads/tl_2019_53_prisecroads.shp") %>%
+      st_crop(xmin = -122.5, ymin = 47.35,
+              xmax = -121.9, ymax = 47.8) %>%
+      st_transform(crs="EPSG:26910")
+
+    ## Reading layer `tl_2019_53_prisecroads' from data source 
+    ##   `/Users/jordanma/work/research/analysis/sucp/uwin_workshop/spatial_analysis_workshop_UWIN/maps/roads/tl_2019_53_prisecroads.shp' 
+    ##   using driver `ESRI Shapefile'
+    ## Simple feature collection with 2912 features and 4 fields
+    ## Geometry type: LINESTRING
+    ## Dimension:     XY
+    ## Bounding box:  xmin: -124.6384 ymin: 45.55945 xmax: -117.0359 ymax: 49.00241
+    ## Geodetic CRS:  NAD83
+
+    forest <- st_read("maps/Seattle_forest.shp") %>%  # Shapefile already cropped
+      st_transform(crs="EPSG:26910")
+
+    ## Reading layer `Seattle_forest' from data source 
+    ##   `/Users/jordanma/work/research/analysis/sucp/uwin_workshop/spatial_analysis_workshop_UWIN/maps/Seattle_forest.shp' 
+    ##   using driver `ESRI Shapefile'
+    ## Simple feature collection with 3388 features and 44 fields
+    ## Geometry type: MULTIPOLYGON
+    ## Dimension:     XY
+    ## Bounding box:  xmin: -122.5 ymin: 47.35 xmax: -121.9 ymax: 47.80039
+    ## Geodetic CRS:  WGS 84
+
+    grass <- st_read("maps/Seattle_grass.shp") %>%  # Shapefile alrady cropped
+      st_transform(crs="EPSG:26910")
+
+    ## Reading layer `Seattle_grass' from data source 
+    ##   `/Users/jordanma/work/research/analysis/sucp/uwin_workshop/spatial_analysis_workshop_UWIN/maps/Seattle_grass.shp' 
+    ##   using driver `ESRI Shapefile'
+    ## Simple feature collection with 12785 features and 44 fields
+    ## Geometry type: MULTIPOLYGON
+    ## Dimension:     XY
+    ## Bounding box:  xmin: -122.5 ymin: 47.35013 xmax: -121.9022 ymax: 47.80039
+    ## Geodetic CRS:  WGS 84
+
+### NDVI and BUILT
+
+    NDVI <- rast("maps/NDVI_WA.tif") %>%
+      project("EPSG:26910") %>%
+      crop(forest)
+    BUILT <- rast("maps/BUILT_WA.tif") %>%
+      project("EPSG:26910") %>%
+      crop(forest)
+    LULC <- rast("maps/LULC_WA.tif") %>%
+      project("EPSG:26910") %>%
+      crop(forest)
+
+    ## |---------|---------|---------|---------|=========================================                                          
+
+## Generate buffer areas
+
+    # Generate buffer areas around camera traps
+    coyotes_buff <- st_buffer(coyotes, dist=500)
+
+## Estimate road density within each buffer area
+
+    # Intersect buffers with road segments
+    car.int <- st_intersection(coyotes_buff, roads)
+    car.int$length.int <- st_length(car.int)
+
+    # Sum all road segment lengths in km within each buffer
+    car.sum <- aggregate(length.int ~ locationid, 
+                         data = car.int,
+                         FUN = sum) # total length of roads in  buffer
+    car.sum<- car.sum %>% mutate(car_length_km = round(as.numeric(length.int)/1000)) #convert to km
+
+    # Merge road lengths into coyote data
+    # Convert NA to 0
+    coyotes_buff <- left_join(coyotes_buff, car.sum, by = "locationid") %>%
+      replace_na(list(car_length_km = 0))
+
+## Estimate total forest and grass surface area
+
+    gra.int <- st_intersection(grass, coyotes_buff)
+    gra.int <- gra.int %>% mutate(grass_area_km2 = as.numeric(st_area(gra.int))/1000^2)
+    grass_area <- aggregate(grass_area_km2 ~ locationid, data = gra.int, FUN = "sum")
+    coyotes_buff <- left_join(coyotes_buff, grass_area, by = "locationid") %>%
+      replace_na(list(grass_area_km2 = 0))
+
+    for.int <- st_intersection(forest, coyotes_buff)
+    for.int <- for.int %>% mutate(forest_area_km2 = as.numeric(st_area(for.int))/1000^2)
+    forest_area <- aggregate(forest_area_km2 ~ locationid, data = for.int, FUN = "sum")
+    coyotes_buff <- left_join(coyotes_buff, forest_area, by = "locationid") %>%
+      replace_na(list(forest_area_km2 = 0))
+
+## Estimate mean vegetation density (NDVI) and mean building density
+
+It is important to change all NDVI values &lt;0 to NA, as these will
+bias our estimates for buffer areas near the shore. We also need to
+create a temporary SpatVector from `coyotes_buff` to `terra` can work
+with both sets of data. The results of the `extract()` function are
+vectors in the same order as the `locationid` column, so we will make a
+new data frame with these results then join it with `coyotes_buff`.
+
+    coyotes_buff_sv <- vect(coyotes_buff)
+
+    NDVI <- ifel(NDVI<0, NA, NDVI)
+    NDVI_mean <- extract(NDVI, coyotes_buff_sv, fun='mean', na.rm=TRUE)[,2]
+
+    BUILT <- ifel(BUILT<0, NA, BUILT)
+    BUILT_mean <- extract(BUILT, coyotes_buff_sv, fun='mean', na.rm=TRUE)[,2]
+
+    raster_means <- cbind.data.frame(locationid = coyotes_buff$locationid,
+                                     NDVI_mean, BUILT_mean)
+
+    # Don't need to replace NAs because there aren't any in raster_means
+    coyotes_buff <- left_join(coyotes_buff, raster_means, by = "locationid")
+
+## Use your spatial data in downstream analysis
+
+The table `coyotes_buff` now has everything we need to eventually run
+stats. It has environmental covariates for an occupancy model. Because
+occupancy modeling is beyond the scope of this tutorial, we’ll
+demonstrate with a couple simple linear models comparing environmental
+variables to the number of detections. Even though `coyotes_buff` is an
+`sf` object, we can run statistics directly on it like any other data
+frame in R.
+
+    summary(glm(detections ~ BUILT_mean + forest_area_km2, data=coyotes_buff))
+
+    ## 
+    ## Call:
+    ## glm(formula = detections ~ BUILT_mean + forest_area_km2, data = coyotes_buff)
+    ## 
+    ## Coefficients:
+    ##                  Estimate Std. Error t value Pr(>|t|)
+    ## (Intercept)       6.19738   65.35269   0.095    0.925
+    ## BUILT_mean        0.02778    0.03152   0.881    0.389
+    ## forest_area_km2   0.95092  126.74844   0.008    0.994
+    ## 
+    ## (Dispersion parameter for gaussian family taken to be 14553.74)
+    ## 
+    ##     Null deviance: 307915  on 22  degrees of freedom
+    ## Residual deviance: 291075  on 20  degrees of freedom
+    ## AIC: 290.53
+    ## 
+    ## Number of Fisher Scoring iterations: 2
+
+    summary(glm(detections ~ BUILT_mean, data=coyotes_buff))
+
+    ## 
+    ## Call:
+    ## glm(formula = detections ~ BUILT_mean, data = coyotes_buff)
+    ## 
+    ## Coefficients:
+    ##             Estimate Std. Error t value Pr(>|t|)
+    ## (Intercept)  6.57471   40.72508   0.161    0.873
+    ## BUILT_mean   0.02764    0.02508   1.102    0.283
+    ## 
+    ## (Dispersion parameter for gaussian family taken to be 13860.75)
+    ## 
+    ##     Null deviance: 307915  on 22  degrees of freedom
+    ## Residual deviance: 291076  on 21  degrees of freedom
+    ## AIC: 288.53
+    ## 
+    ## Number of Fisher Scoring iterations: 2
