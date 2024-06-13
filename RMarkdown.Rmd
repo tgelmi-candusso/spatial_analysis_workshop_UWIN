@@ -1,7 +1,7 @@
 ---
-title: 'Spatial Analysis in R'
-author: "M Jordan and TA Gelmi-Candusso"
-date: "2024-06-06"
+title: 'Spatial Mapping in R'
+author: "Tiziana Gelmi-Candusso and Mark Jordan"
+date: "`r Sys.Date()`"
 output:
   html_document:
     toc: true
@@ -9,12 +9,14 @@ output:
   pdf_document:
     toc: true
     toc_depth: 2
-  md_document: default
+  md_document:
+    toc: true
+    toc_depth: 2
 urlcolor: blue
 always_allow_html: true
 knit: (function(inputFile,encoding) {
-  output_format = "all") } )
   rmarkdown::render(inputFile, encoding = encoding,
+  output_format = "all") } )
 editor_options: 
   markdown: 
     wrap: sentence
@@ -24,13 +26,31 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 ```
 
+# Spatial Mapping in R
+*Tiziana Gelmi-Candusso and Mark Jordan* June 2024
+
+## Learning objectives
+
+1. Describe different data types and projections used in spatial data analysis
+2. Import and process spatial data (vector and raster)
+3. Display spatial data in customizable maps
+4. Prepare spatial data for downstream analysis
+
+## Workshop overview
+
+During the workshop we will work with converting our camera trap data to spatial layers, map them, and extract spatial information within each sampling site's buffer area.
+For this we will import, manipulate and extract spatial data in both vector (points, lines, and polygons) and raster form.
+Our output will be a table with all camera trap records and the corresponding environmental variables, ready to build models using your detection data.
+This case study shows how integrating your spatial analysis into R allows you to perform a complete analysis in one setting instead of bouncing back and forth between GIS and R.
+
+Let's start.
+
 # Spatial data
 
 Spatial data is any type of data that directly or indirectly references a specific geographical area or location.
 These can be, for example, geographic features on the landscape or environmental properties of an area such as temperature or air quality.
-
 Spatial data can be continuous or discrete just like regular data, and in both cases it can be represented as a **vector** or a **raster**.
-Vector data uses points and lines to represent spatial data, while raster data represents data in a grid of pixels where each pixel/cell represents a specific geographic location and the information therein.
+Vector data uses points, lines, or polygons to represent spatial data, while raster data represents data in a grid of pixels where each pixel/cell represents a specific geographic location and the information therein.
 Raster data will be heavily influenced by the size of the pixels/cells, i.e. resolution.
 
 ![Figure showing difference between vectors and rasters](images/vectorvsraster_from_rsgislearn_blogspot_com.png "Vector data"){width="60%"}
@@ -44,9 +64,9 @@ These are called projections, as the representations project the 3-dimensional s
 Maps with different projections are not comparable and cannot be overlaid.
 Therefore, we need to make sure we always work on the same projection when using spatial data.
 
-![Figure showing different projectsions of the earth](images/map_projections.png "Vector data"){width="60%"}
+![Figure showing different projections of the earth](images/map_projections.png "Vector data"){width="60%"}
 
-To locate points geographic features on a map, you also need a system of coordinates that define the x-y coordinates for every point on the map.
+To locate geographic features on a map, you also need a system of coordinates that define the x-y coordinates for every point on the map.
 The system of latitude and longitude is the most familiar.
 These coordinate systems can be used to extract area and distance information from maps.
 A combination of a projection and a set of coordinates is known as a **Spatial Reference System (SRS)**.
@@ -55,8 +75,12 @@ In general, there is a trade-off between the extent of an SRS and its accuracy f
 For example, the WGS84 system of latitude and longitude covers the entire earth, but it is not useful for measurement because degrees of longitude become closer together the closer you are to the poles.
 Systems based in UTM or State Plane coordinates are much more accurate for measuring distances and areas, but they are only useful for covering specific regions.
 
-To describe SRS systems around the world, every system is given a specific "EPSG code." For example, the familiar system of latitude / longitude has the EPSG code 4326.
-All GIS software, including spatial mapping functions in R, allow users to transform our spatial data between different SRSs using these EPSG codes.
+To describe SRS systems around the world, every system is given a specific "EPSG code." For example, the familiar system of latitude / longitude has the EPSG code 4326, which is the one we will use today.
+All GIS software, including spatial mapping functions in R, allow users to transform spatial data between different SRSs using these EPSG codes.
+
+Throughout the workshop we will work with one projection "EPSG:4326".
+We will project and re-project layers, i.e. to estimate distances using a metric coordinate system, however, we'll always re-project to that one chosen projection for our final spatial output at each stage.
+This will facilitate the extraction of covariates for each camera site since we will have to overlay layers.
 
 In summary, every spatial data set comes with two primary considerations:
 
@@ -65,17 +89,51 @@ In summary, every spatial data set comes with two primary considerations:
 
 ## Setting up to work with spatial data in R
 
-Packages used to read and manipulate data include the `sf` package, which reads a shapefile as a spatial data frame, and the `terra` package that reads the shapefiles as a Spatvector.
-Previously there was also the `raster` package, but we will try to avoid it as it has been deprecated.
-We have also included `ggplot2` and the `ggmap` package, which has useful mapping functions on top of `ggplot2`.
+### Packages
+
+There are several packages to work with spatial data. Currently, the two most common are `sf` and `terra`.
+`sf` can be used for vector data and `terra` can be used for both vector and raster data.
+The functions to work with vector data are different between the packages, but objects can be converted easily into one another.
+To go from a Spatvector (`terra`) to Spatial dataframe (`sf`) we use `sf::st_as_sf()` and vice-versa we use `terra::vect()`.
+In most cases, it really doesn't matter which one we use. `sf` is better for cross-compatibility with other GIS platforms, it can be faster, and it has [some other advantages described here](https://r.geocompx.org/spatial-class#intro-sf). `terra` can generate multilayer objects and works with the `leaflet` package for interactive views.
+We will work with `sf` here and convert the objects to `terra` when we need to.
+
+* [Cheatsheet for sf](https://github.com/rstudio/cheatsheets/blob/main/sf.pdf)
+* [All the functions available in `terra`](https://rdrr.io/github/rspatial/terra/man/terra-package.html)
+* [Tables to convert between the two](https://www.r-bloggers.com/2023/06/upcoming-changes-to-popular-r-packages-for-spatial-data-what-you-need-to-do/)
+
+We will also use three packages from the tidyverse (`dplyr`, `tidyr`, and `ggplot2`) as well as three other mapping packages:
+
+* `rosm` - plotting from Open Street Map
+* `tmap` - enhanced mapping features
+* `leaflet` - interactive web maps 
 
 ```{r load packages, echo=TRUE, message = FALSE}
 library(dplyr)
 library(tidyr)
+library(ggplot2)
+
 library(sf)
 library(terra)
-library(ggplot2)
-library(ggmap)
+
+library(rosm)
+library(tmap)
+library(leaflet)
+```
+
+If you haven't already installed some of these packages, where is a fancy function to both install and load them at the same time.
+
+```{r eval = FALSE}
+#fancy function to install packages only if you don't have them already
+if(!require(tmap)){
+    install.packages("tmap", repos = c("https://r-tmap.r-universe.dev",
+                                   "https://cloud.r-project.org"))
+    library(tmap)
+}
+if(!require(leaflet)){
+    install.packages("leaflet")
+    library(leaflet)
+}
 ```
 
 # Vector data
@@ -90,64 +148,10 @@ Features can be points (red) representing specific x,y locations, such as a tree
 
 ![Figure showing polygons, points, and lines in the landscape](images/vector_data_image_from_docs_qgis_org.png "Vector data"){width="80%"}
 
-Vector data reads as a data frame would.
-Each row is a feature and each column is an attribute, and it contains a geometry column where the xy coordinates for the shapes are stored.
-Plotting these data will plot the points or shapes in the map using the xy coordinates stored for each feature.
-
-```{r, echo=FALSE}
-captures.table <- read.csv("data/captures.csv")
-captures.spatial <- st_as_sf(captures.table,
-                     coords = c("longitude","latitude"), 
-                     crs = 4326)
-head(captures.spatial)
-```
-
-The output in the section above shows example vector data for points representing captures of wildlife at camera traps.
-The top of the output describes the data, including the reference system (WGS 84, which is the standard for lat/lon data) and minimum and maximum extent of the data.
-Each row has attribute data (species, a location ID, and the capture date of that species).
-The final column stores the spatial data.
-You can see that it is `POINT` data and the coordinates of each point.
-
-### Packages
-
-There are several packages to deal with spatial data, the two most common now are sf and terra.
-Sf can be used for vector data and terra can be used for both vector and raster data.
-The functions to work with vector data are different between the packages, but objects can be converted easily into one another.
-To go from a Spatvector (terra) to Spatial dataframe (sf package) we use sf::st_as_sf() and viceversa we use terra::vect().
-Here is a list of some of the equivalent functions between sf and terra.
-In most cases, it really doesnt matter which one we use, sf is better for cross-compatibility with other GIS platforms (sf - more advantages here <https://r.geocompx.org/spatial-class#intro-sf>) and sometimes faster, terra instead can generate multilayer objects and works with leaflet for interactive views.
-We will work with sf here and convert the objects to terra when we need to.
-
-cheatsheet for sf <https://github.com/rstudio/cheatsheets/blob/main/sf.pdf> and all the functions available in terra here : <https://rdrr.io/github/rspatial/terra/man/terra-package.html>
-
-Conversion tables are here: <https://www.r-bloggers.com/2023/06/upcoming-changes-to-popular-r-packages-for-spatial-data-what-you-need-to-do/>
-
-### Workshop Outline
-
-During the workshop we will work with converting our camera trap data to spatial layers, map them, and extract spatial information within each sampling site's buffer area.
-For this we will import, manipulate and extract spatial data in both vector (points, lines, and polygons) and raster form.
-Our output will be a table with all camera trap records and the corresponding environmental variables, ready to build models using your detection data.
-This case study shows how integrating your spatial analysis into R allows you to perform a complete analysis in one setting instead of bouncing back and forth between GIS and R.
-
-Throughout the workshop you will learn to:
-
-1.  Import data for a spatial analysis
-2.  Get all your data layers into the same projection
-3.  Buffer a camera trap site
-4.  Extract environmental covariates from this buffer
-5.  Run a simple regression model with camera data
-
-Throughout the workshop we will work with one reprojection "EPSG:4326".
-We chose one here to avoid confusion.
-We will project and reproject layers, i.e. to estimate distances using a metric coordinate system, however, we'll always reproject to that one chosen projection for our final spatial output at each stage.
-This will facilitate the extraction of covariates for each camera site since we will have to overlay layers.
-
-Let's start.
-
 ## Vector data: points
 
 When translating camera trap data into a spatial object in R, each capture would have one x,y coordinate, corresponding to their respective camera trap site, hence these would be become point vector data.
-So we will start our workshop with point vector data by loading, preparing and plotting our camera trap sites and the corresponding capture data.
+We will start our workshop with point vector data by loading, preparing and plotting our camera trap sites and the corresponding capture data.
 
 In this section, you will learn the following methods for working with point data
 
@@ -178,26 +182,30 @@ captures.spatial <- st_as_sf(captures.table,
 head(captures.spatial)
 ```
 
-#### Arguments
+Vector data reads as a data frame would.
+Each row is a feature and each column is an attribute, and it contains a geometry column where the xy coordinates for the shapes are stored.
+Let's break down how we converted these data and what the ouput means.
 
-The st_as_sf() function has three arguments:
+### Arguments
+
+The `st_as_sf()` function has three arguments:
 
 1.  our data frame "captures.table",
 2.  `coords`: the names of the columns that hold our coordinates. Note that Longitude comes before latitude. This is because the pattern is x,y, and Longitude is the Earth's x-axis.
 3.  `crs`: the Coordinate Reference System.
 
-#### CRS
-
-How do we know which projection our data is in?
 Because the data are in lat/lon format, they are in the WGS 84 projection, and the EPSG code for this projection is 4326.
 With other sources of point data, you may need to ask your data provider for the CRS before working with it.
 
-#### METADATA of spatial object
+### METADATA of spatial object
 
-With a spatial data frame, you get the same data frame as before with two new things.
+With a spatial data frame, you get the same data frame as before.
+Each row has attribute data (species, a location ID, and the capture date of that species).
+
+However, you also get two new things.
 
 1.  Five lines above your data that describe the spatial components of the data frame. Notice the `Geodetic CRS` row that confirms our data are in WGS84 format.
-2.  A new column at the end called `geometry`. This is the column that has converted the Latitude and Longitude columns into spatial data we can use in calculations.
+2.  A new column at the end called `geometry`. This is the column that has converted the Latitude and Longitude columns into spatial data we can use in calculations. Notice that it is in `POINT` format.
 
 \newpage
 
@@ -207,7 +215,6 @@ Let's observe the spatial distribution of the points by plotting them using the 
 The `geom_sf()` function will allow us to plot the spatial data frame object.
 
 ```{r, eval=TRUE}
-library(ggplot2)
 ggplot(captures.spatial) + geom_sf()
 ```
 
@@ -216,64 +223,48 @@ There is no basemap in this plot.
 
 \newpage
 
-If we want to add a reference so we can easily distinguish between locations, we can use Google Maps with an API key, get the map of Seattle with the get_map() function and plot the basemap with the ggmap() inside our ggplot syntax.
-We will leave a script in the github for this.
-Now instead, we will move out of our ggcomfort zone and use the tmap function, which has a similar syntax as ggplot but is specifically made for drawing maps and adds a basemap automatically when used interactively.
+If we want to add a reference so we can easily distinguish between locations, we will move out of our ggcomfort zone and use the `tmap` function, which has a similar syntax as `ggplot` but is specifically made for drawing maps and adds a basemap automatically when used interactively.
+
+**This map won't display in the Markdown version of the tutorial, but you should have an interactive map in the Plot window of RStudio when you run these next lines.**
 
 ```{r}
-#fancy function to install packages only if you dont have them already
-if(!require(tmap)){
-    install.packages("tmap", repos = c("https://r-tmap.r-universe.dev",
-                                   "https://cloud.r-project.org"))
-    library(tmap)
-}
-if(!require(leaflet)){
-    install.packages("leaflet")
-    library(leaflet)
-}
-
 #now we plot, and we'll make it interactive that will add a basemap automatically
 tmap_mode(mode = c("view")) #to return to static use "plot" 
 
 tm_shape(captures.spatial) +
   tm_dots(size = 0.1, col="black")
-
-#change the basemap in the interactive map
-
 ```
 
 A static view of the map is useful when exporting maps, and is a quicker visualization of the whole area.
-To access the static view, we change the mode parameter of the tmap_mode() function to "plot".
+To access the static view, we change the mode parameter of the `tmap_mode()` function to "plot".
 
-In static mode we need to add a basemap, and the easiest and quickest way to do that is by using the osm.raster() function from the rosm package and getting the OpenStreetMap basemap for our study area, using directly the bounding box of the spatial data we are working with.
-We don't need an API here.
+In static mode we need to add a basemap, and the easiest and quickest way to do that is by using the `osm.raster()` function from the `rosm` package, which loads the OpenStreetMap basemap for our study area, using directly the bounding box of the spatial data we are working with.
 
 ```{r}
-library(sf)
-library(rosm)
 #download background file from OpenStreetMap using the extent of the captue data
- bg = rosm::osm.raster(st_bbox(captures.spatial)) #get background from OSM using our layer's extent/bbox
- bg[bg[]>255]=255 #little trick to make sure the reprojection doesnt mess up with the rgb values.
- bg[bg[]<0]=0
+bg = rosm::osm.raster(st_bbox(captures.spatial)) #get background from OSM using our layer's extent/bbox
+bg[bg[]>255]=255 #little trick to make sure the reprojection doesn't mess up with the rgb values.
+bg[bg[]<0]=0
  
-#No we plot in static mode
- 
- tmap_mode(mode = c("plot"))
+#Now we plot in static mode
+tmap_mode(mode = c("plot"))
  
 #we add the background basemap 
- tm_shape(bg) +
+tm_shape(bg) +
    tm_rgb() + #background is an rgb file
-  tm_shape(captures.spatial) + #overlays over the camera trap data points
-    tm_dots(size = 0.1, col="black")
+   tm_shape(captures.spatial) + #overlays over the camera trap data points
+   tm_dots(size = 0.1, col="black")
  
 ```
 
-Notice how we are adding layers to the map uisng the tmap syntax.
-We add the background first we the tm_shape(), specify details for that layer with the function relevant to that type of map, in this case a raster map so tm_rgb(), then add another layer with another tm_shape() function for our points vector layer, the captures, a point vector map, so we use the tm_dots() function with the specifications inside.
+Notice how we are adding layers to the map using the `tmap` syntax, which should feel familiar to users of `ggplot`.
+We add the background first with `tm_shape()`, specify details for that layer with the function relevant to that type of map, in this case a raster map so `tm_rgb()`, then add another layer with another `tm_shape()` function for our points vector layer. Finally, because our captures are a point vector map, we use the `tm_dots()` function with the specifications inside.
 
 \newpage
 
-### Plotting coyote detections on a map {#coyotemap}
+# EDITED TO HERE
+
+### Plotting coyote detections on a map
 
 Now lets plot on a map the coyotes captured at each of the camera trap sites.
 We will filter the data based on species name, using the dplyr package, and count detections at each site.
@@ -540,7 +531,7 @@ print(camera_buff_UTM$road_density)
 Notice that the unit `[m]` is printed in the column.
 We can convert to numeric if we don't want the unit directly in the column using `as.numeric()`
 
-```{r, results=hide}
+```{r echo=FALSE}
 camera_buff_UTM$road_density <- as.numeric(camera_buff_UTM$road_density)
 ```
 
@@ -642,7 +633,7 @@ We want total forest surface area within each camera site's buffer area and this
 
 Add the information of the crs you need to transform to in the parameters of the `st_transform()` function
 
-```{r}
+```{r eval=FALSE}
 forest_UTM <- sf::st_transform(forest_sf,crs="") #project() in terra
 ```
 
