@@ -227,7 +227,7 @@ If we want to add a reference so we can easily distinguish between locations, we
 
 **This map won't display in the Markdown version of the tutorial, but you should have an interactive map in the Plot window of RStudio when you run these next lines.**
 
-```{r}
+```{r eval = FALSE}
 #now we plot, and we'll make it interactive that will add a basemap automatically
 tmap_mode(mode = c("view")) #to return to static use "plot" 
 
