@@ -262,33 +262,31 @@ We add the background first with `tm_shape()`, specify details for that layer wi
 
 \newpage
 
-# EDITED TO HERE
-
 ### Plotting coyote detections on a map
 
-Now lets plot on a map the coyotes captured at each of the camera trap sites.
-We will filter the data based on species name, using the dplyr package, and count detections at each site.
+Now let's plot on a map the coyotes captured at each of the camera trap sites.
+We will filter the data based on species name, using the `dplyr` package, and count detections at each site.
 We will then plot using the function seen above, but setting point size based on the number of detections at each site, inside the specification function for the captures layers.
 
-Notice that besides specifying the variable "detections" in the size parameter of tm_dots, we are also adding a few extra layers to our map here, we are adding a scale, a compass and some credits, each of these layers is a function added to our tmap syntax.
+Notice that besides specifying the variable "detections" in the size parameter of `tm_dots`, we are also adding a few extra layers to our map here: we are adding a scale, a compass, and some credits. Each of these layers is a function added to our tmap syntax.
 
 ```{r, echo=TRUE}
-library(dplyr)
+# Filter for coyote detections and count the number at each location
 coyotes <- filter(captures.spatial, speciesname == "Canis latrans") %>%
   group_by(locationid) %>%
   summarize(detections = n())
 
+# Draw the map
 tm_shape(bg) +
-tm_rgb() + #background is an rgb file
-tm_shape(coyotes) + #overlays the camera trap data points
-tm_dots(size = "detections", col="black", #determine size will change with detection freq.
-        sizes.legend = seq(100,500, by=100), #define break interval
-        title.size = "frequency")+        #chnge title for the size variable
-tm_layout(title = "Coyote detections")  + #plot title
-tm_compass(position = c("right", "top")) + #add compass
-tm_scale_bar() +                          #add scale 
-tm_credits("Author, 2024")                #add credits
-
+  tm_rgb() + #background is an rgb file
+  tm_shape(coyotes) + #overlays the camera trap data points
+  tm_dots(size = "detections", col="black", #determine size will change with detection freq.
+          sizes.legend = seq(100,500, by=100), #define break interval
+          title.size = "frequency")+        #chnge title for the size variable
+  tm_layout(title = "Coyote detections")  + #plot title
+  tm_compass(position = c("right", "top")) + #add compass
+  tm_scale_bar() +                          #add scale 
+  tm_credits("Author, 2024")                #add credits
 ```
 
 ### Try it yourself
@@ -303,6 +301,8 @@ See if you can make the same map, but for raccoons.
 #End
 ```
 
+\newpage
+
 <details closed>
 
 <summary>Solution</a></summary>
@@ -313,26 +313,43 @@ See if you can make the same map, but for raccoons.
         summarize(detections = n())
 
   tm_shape(bg) +
-  tm_rgb() + #background is an rgb file
-  tm_shape(raccoons) + 
-  tm_dots(size = "detections", col="black", 
-      sizes.legend = seq(100,500, by=100),
-      title.size = "frequency")+
-      tm_layout(title = "Raccoon detections")  +
-      tm_compass(position = c("right", "top")) + 
-      tm_scale_bar() + 
-      tm_credits("Myself, 2024")    
+        tm_rgb() + #background is an rgb file
+        tm_shape(raccoons) + 
+        tm_dots(size = "detections", col="black", 
+            sizes.legend = seq(100,500, by=100),
+            title.size = "frequency")+
+            tm_layout(title = "Raccoon detections")  +
+            tm_compass(position = c("right", "top")) + 
+            tm_scale_bar() + 
+            tm_credits("Myself, 2024")    
 ```
 
 </details>
+
+```{r echo = FALSE}
+raccoons <- filter(captures.spatial, speciesname == "Procyon lotor") %>%
+  group_by(locationid) %>%
+  summarize(detections = n())
+
+tm_shape(bg) +
+  tm_rgb() + #background is an rgb file
+  tm_shape(raccoons) + 
+  tm_dots(size = "detections", col="black", 
+          sizes.legend = seq(100,500, by=100),
+          title.size = "frequency")+
+  tm_layout(title = "Raccoon detections")  +
+  tm_compass(position = c("right", "top")) + 
+  tm_scale_bar() + 
+  tm_credits("Myself, 2024")    
+```
 
 \newpage
 
 ### Buffering point data
 
 We will first generate a buffer polygon for each camera site, with radius 500m from the camera trap location.
-We need all the unique camera site locations, which we'll extract from our camera.spatial dataset.
-Then we'll buffer those unique locations with the st_buffer() function.
+We need all the unique camera site locations, which we'll extract from our `camera.spatial` dataset.
+Then we'll buffer those unique locations with the `st_buffer()` function.
 
 Notice that although the WGS84 CRS is widely used, we are going to convert our data to a different CRS for any function that involves distance calculations.
 The CRS we will use is the Universal Transverse Mercator (UTM) for Zone 10, which covers a strip from the equator to the north pole, including the state of Washington.
@@ -342,24 +359,25 @@ It has two primary advantages over WGS84:
 1.  It allows more precise calculations over short distances
 2.  Its units are in meters.
 
-We will re transform to the WGS84 right after to keep consistency.
+We will re-project to the WGS84 right after making the buffers to keep consistency.
 
 ```{r}
-library(dplyr)
-all_locations <- captures.spatial %>% select(locationid) %>% 
+# Make a data frame with just the locations, one row for each
+all_locations <- captures.spatial %>% 
+  select(locationid) %>% 
   distinct() %>%
   st_transform(crs="EPSG:26910")
 
+# Buffer then re-project
 camera_buff <- st_buffer(all_locations, dist=500)%>%
   st_transform(crs="EPSG:4326")
 
+# Draw the map
 tm_shape(bg)+
   tm_rgb()+
-tm_shape(camera_buff)+
+  tm_shape(camera_buff)+
   tm_borders()+
   tm_scale_bar()
-
-
 ```
 
 Now that we have the buffers of our camera trap sites, it's time to move on to lines.
@@ -368,8 +386,8 @@ Now that we have the buffers of our camera trap sites, it's time to move on to l
 
 ## Vector data: lines
 
-For our case study, we'll use line vector data to get the road density within our camera sites buffer and distance to nearest road from each camera trap site.
-This can be done also with waterways for example.
+For our case study, we'll use line vector data to get the road density within our camera sites' buffer and the distance to nearest road from each camera trap site.
+This can be done with any line data such as waterways.
 
 In this section, you will learn the following methods for working with line data.
 
@@ -394,8 +412,8 @@ roads <- st_read("maps/roads/tl_2019_53_prisecroads.shp")
 ### Plotting line data
 
 Let's plot the dataset to see how it looks.
-If you use plot() you will have to specify the attribute you want to use with plot(roads[,1]) otherwise it will plot one map for each attribute.
-With tmap, you don't have to, and neither if you plot a spatvector with plot().
+If you use `plot()` from base R, you will have to specify the attribute you want to use with `plot(roads[,1])` or it will plot one map for each attribute.
+With `tmap`, you don't have to specify the attribute. If you plot a Spatvector (the native format with `terra`) with `plot()`, you also don't need to specify the attribute.
 
 ```{r}
 tm_shape(roads)+
@@ -410,14 +428,13 @@ tm_shape(roads)+
 As you can see from the map and the scale bar, our road layer covers the entire state.
 We would like to narrow it down to our study area.
 We have coordinates for the boundaries of our study area from the previous section but the coordinate systems don't match in terms of projection, so we first need to **transform** one of the two layers.
-This is an essential step in nearly any spatial analysis, layers always need have matching projections when working together, so you will become very familiar with the `st_transform()` function.
+This is an essential step in nearly any spatial analysis. Layers always need to have matching projections when working together, so you will become very familiar with the `st_transform()` function.
 
 We can transform either the boundaries or the roads layer.
 It is usually faster to transform the simplest layer you have, in this case the boundary coordinates (a.k.a bounding box).
 We'll convert those boundaries to a bounding box (or Spatextent in terra) and transform, like we normally would a spatial layer.
 
 ```{r}
-
 seattle_bb <- st_bbox(captures.spatial) %>%
   st_as_sfc() %>% #for sf bbox we need to convert them to a spatial object before transforming
   st_transform(crs = crs(roads)) %>%
@@ -425,21 +442,19 @@ seattle_bb <- st_bbox(captures.spatial) %>%
 
 #Note:in terra we'd use ext() instead of st_bbox() and project() denoting the crs from which the spatextent comes from, captures.spatial, to the layer crs we want, roads.
 #seattle_bb <- terra::project(ext(captures.spatial), captures.spatial, roads)
-
 ```
 
 We crop to the same dimensions as the bounding box from the previous section with `st_crop()`.
 
 ```{r}
-
 roads.clip <- st_crop(roads, seattle_bb)
 tm_shape(bg)+
   tm_rgb()+
-tm_shape(roads.clip)+
+  tm_shape(roads.clip)+
   tm_lines(col="black")+ #define line color 
   tm_scale_bar()+
-#overlaying the camera site locations
-tm_shape(all_locations)+
+  #overlaying the camera site locations
+  tm_shape(all_locations)+
   tm_dots(size=0.1) #define point size
 ```
 
@@ -458,14 +473,14 @@ roads_UTM <- st_transform(roads.clip, crs="EPSG:26910")
 ### Estimating road density around camera sites
 
 Road density is defined by the total length of length of roads divided by the total area.
-In our case our measurements are specific to the buffer areas of each camera site, so we only want the length for those intersecting roads, so we use the **`st_intersect()`** function to find those road sections, **`syntax st_intersect(roads, buffer_areas)`**
+In our case our measurements are specific to the buffer areas of each camera site, so we only want the length for those roads that intersect with each buffer. We do this with the **`st_intersect()`** function to find those road sections: **`Syntax: st_intersect(roads, buffer_areas)`**
 
-To estimate length we use the **`st_length()`** function on the intersecting roads object, make a new column with the length information.
-With that we can sum the lengths of road sections within each buffer site using the **`aggregate()`** function **`syntax aggregate(length ~ bufferid, data=your_object, FUN="sum")`**`.`
+To estimate length we use the **`st_length()`** function on the intersecting roads object, making a new column with the length information.
+With that we can sum the lengths of road sections within each buffer site using the **`aggregate()`** function. **`Syntax: aggregate(length ~ bufferid, data=your_object, FUN="sum")`**.
 
-To estimate area we use the st_area() function, and we can add the results directly to a column in the buffer object using the regular **`syntax buffer_object$area <- st_area(buffer_object)`**`.`
+To estimate area we use the `st_area()` function, and we can add the results directly to a column in the buffer object using the regular syntax **`buffer_object$area <- st_area(buffer_object)`**.
 
-Finally, you can join two spatial data frames using the **`st_join()`** function, if both layers are in the same crs, putting first the layer that has all the ids, so you get NAs where any roads are missing.
+Finally, you can join two data frames in a variety of ways. Our buffer layer is the base, spatial layer, and it has all the locations. The length data frame is not spatial -- it just contains the locationids and the lengths. It only has rows for locations whose buffers intersect with roads. Because not all locations will have a length, we need to use a **`left_join()`** to include every location so you get NAs where any roads are missing.
 
 With the length an area columns do the math like you normally would between columns of one data frame, and [add the results to your buffer object 'camera_buff_UTM" as a new column 'road_density'.]{.underline}
 
@@ -480,6 +495,8 @@ With the length an area columns do the math like you normally would between colu
 #End
 
 ```
+
+\newpage
 
 <details closed>
 
@@ -496,12 +513,10 @@ road_buff_lengths <- aggregate(length ~ locationid, data=roads_buff, FUN="sum")
 camera_buff_UTM$area <- st_area(camera_buff_UTM)
 
 #join road lengths estimates and the camera buffer object
-camera_buff_UTM <- st_join(camera_buff_UTM, road_buff_lengths, by = "locationid")
+camera_buff_UTM <- left_join(camera_buff_UTM, road_buff_lengths, by = "locationid")
 
 #calculate road density
-camera_buff_UTM$road_density <- camera_buff_UTM$len_m/camera_buff_UTM$area
-
-print(camera_buff_UTM$road_density)
+camera_buff_UTM$road_density <- camera_buff_UTM$length/camera_buff_UTM$area
 ```
 
 </details>
@@ -528,7 +543,7 @@ print(camera_buff_UTM$road_density)
 
 ```
 
-Notice that the unit `[m]` is printed in the column.
+Notice that the unit `[1/m]` is printed in the column.
 We can convert to numeric if we don't want the unit directly in the column using `as.numeric()`
 
 ```{r echo=FALSE}
@@ -546,13 +561,13 @@ all_locations <- left_join(all_locations, camera_buff_UTM_df, by="locationid")
 
 ### Distance to primary roads
 
-All the roads in this layer are primary roads, so mainly highways, that's why most camera sites do not have any of the roads around them.
+All the roads in this layer are primary roads, mainly highways, which is why most camera sites do not have any of the roads around them.
 
 Instead of road density, we can estimate distance to closest linear feature using the **`st_distance()`** function and finding the minimum value for each camera site.
 Our camera sites are in the ["`all_locations`"]{.underline} object, already in UTM, and the roads object in UTM is the ["`roads_UTM`"]{.underline}.
 **`syntax st_distance(points, lines)`**
 
-This will give a matrix of all distances between all lines and all points, so you need to find the minimum value from each camera site, using different methods, I will suggest the **`apply()`** to each row **`apply(dist_roads, 1, FUN = min)`**
+This will give a matrix of all distances between all lines and all points, so you need to find the minimum value from each camera site, using different methods. We will suggest using **`apply()`** for each row **`apply(dist_roads, 1, FUN = min)`**
 
 [Do the math and add it as a new column to the camera sites object "all_locations".]{.underline}
 
@@ -563,6 +578,8 @@ This will give a matrix of all distances between all lines and all points, so yo
 #End
 ```
 
+\newpage
+
 <details closed>
 
 <summary>Solution</a></summary>
@@ -570,8 +587,6 @@ This will give a matrix of all distances between all lines and all points, so yo
 ```         
   dist_roads <- st_distance(all_locations, roads_UTM)
   all_locations$dist_to_road <- apply(dist_roads, 1, FUN = min)
-  print(all_locations)
-  
 ```
 
 </details>
@@ -582,7 +597,7 @@ all_locations$dist_to_road <- apply(dist_roads, 1, FUN = min)
 print(all_locations)
 ```
 
-Now our all_locations object has the distance to road, and the road density calculations.
+Now our `all_locations` object has the distance to the nearest road and the road density.
 We are moving on to the next section of this workshop, polygon vector data.
 
 \newpage
@@ -612,12 +627,12 @@ forest_sf <- st_read("maps/Seattle_forest.shp")
 
 \newpage
 
-We use again the tmap syntax here, with `tm_borders()` for drawing the polygons, and tm_fill() for coloring them, can also use only tm_borders() for outlines only, and so forth.
+We use again the tmap syntax here, with `tm_borders()` for drawing the polygons, and `tm_fill()` for coloring them. You can also use `tm_borders()` for outlines only without fill.
 
 ```{r}
 tm_shape(bg)+
   tm_rgb()+
-tm_shape(forest_sf)+
+  tm_shape(forest_sf)+
   tm_borders() + 
   tm_fill(col="darkgreen")
 ```
@@ -629,9 +644,9 @@ Look for the row with `"EPSG"` in it.
 sf::st_crs(forest_sf)
 ```
 
-We want total forest surface area within each camera site's buffer area and this is in WGS 84 / EPSG:4326, so we need to transform it to UTM EPSG:2691 to calculate area.
+We want total forest surface area within each camera site's buffer area. The forest layer is currently in WGS 84 / EPSG:4326, so we need to transform it to UTM EPSG:26910 to calculate area.
 
-Add the information of the crs you need to transform to in the parameters of the `st_transform()` function
+Fix the line below to include the information of the crs you need to transform to in the parameters of the `st_transform()` function.
 
 ```{r eval=FALSE}
 forest_UTM <- sf::st_transform(forest_sf,crs="") #project() in terra
@@ -641,9 +656,19 @@ forest_UTM <- sf::st_transform(forest_sf,crs="") #project() in terra
 forest_UTM <- sf::st_transform(forest_sf,crs="EPSG:26910") #project() in terra
 ```
 
+<details closed>
+
+<summary>Solution</a></summary>
+
+```         
+  forest_UTM <- sf::st_transform(forest_sf,crs="EPSG:26910")
+```
+
+</details>
+
 As we did for the road density estimate, we need to intersect the forest layer with the **`st_intersect()`** function.
-Then instead of length, we estimate the area of each intersecting forest patch with **`st_area()`**, adding the result as a column to our intersection object, name this colum **'forest_area'**.
-Then as we did with road density, we sum the values of all intersecting forest patches for each camera site buffer using the **`aggregate()`** function, save as a new object.
+Then instead of length, we estimate the area of each intersecting forest patch with **`st_area()`**, adding the result as a column to our intersection object. Name this column **'forest_area'**.
+Then as we did with road density, we sum the values of all intersecting forest patches for each camera site buffer using the **`aggregate()`** function, and save it as a new object.
 Add the results to the camera site object "`all_locations`" using the [**`left_join()`**]{.underline} function with the new object your created.
 
 [You can do this, give it a go.]{.underline}
@@ -655,6 +680,8 @@ Add the results to the camera site object "`all_locations`" using the [**`left_j
 
 # End
 ```
+
+\newpage
 
 <details closed>
 
@@ -694,9 +721,9 @@ all_locations <- left_join(all_locations, forest_buff_area, by = "locationid")
 print(all_locations)
 ```
 
-Now our all_locations object also has the variable 'forest_area', let's move on to the raster data we have to extract.
+Now our `all_locations` object also has the variable 'forest_area', let's move on to the raster data we have to extract.
 
-## Raster data
+# Raster data
 
 For our analysis, we want to get the mean building density and mean vegetation density in our buffer areas, these come as global raster layers.
 
@@ -716,7 +743,7 @@ NDVI <-rast("maps/NDVI_WA.tif")
 BUILT <- rast("maps/BUILT_WA.tif")
 ```
 
-### Cropping Rasters
+## Cropping Rasters
 
 We will crop the rasters to our study site using a bounding box of our study site, like we did when creating our seattle_bb object.
 However our study site bounding box and the rasters, again are not in the same projection, so we need to transform our data.
@@ -724,14 +751,12 @@ However our study site bounding box and the rasters, again are not in the same p
 Once again, we will convert our bounding box projection to the raster's projections, it is easier, faster, and more accurate.
 
 ```{r}
-
 seattle_bb_NDVI <- st_bbox(captures.spatial) %>%
   st_as_sfc() %>% 
   st_transform(crs = crs(NDVI)) %>%
   st_bbox() 
 
 NDVI <- crop(NDVI, seattle_bb_NDVI)
-
 ```
 
 Now since the NDVI layer is already at the size we want, we can use it directly to project the BUILT layer onto it, which will come in handy when stacking.
@@ -747,17 +772,26 @@ Now since the NDVI layer is already at the size we want, we can use it directly 
 ```
 
 ```{r, echo=FALSE}
-
 BUILT <- project(BUILT, NDVI)
-
 ```
+
+<details closed>
+
+<summary>Solution</a></summary>
+
+```         
+  BUILT <- project(BUILT, NDVI)
+  
+```
+
+</details>
 
 ### Compiling Raster bricks
 
-When we are dealing with many rasters, we can stack them together as a raster brick and apply functions directly to all of them, but they have to perfectly match in terms of extent.
-We already reproject into one another so we are set.
+When we are dealing with many rasters, we can stack them together as a **raster brick** and apply functions directly to all of them. Layers in a raster brick have to perfectly match in terms of extent.
+Because we already re-projected one into the other, we are set.
 
-Stacking rasters, is not necessary, but comes in handy when dealing with many rasters, it will allow us to for example to save one more rasters in one ".tif" file, apply functions or operations across layers, use different rasters as if they were columns of a data frame, etc.
+Stacking rasters is not necessary, but it comes in handy when dealing with many rasters. It will allow us, for example, to save one more rasters in one ".tif" file, apply functions or operations across layers, use different rasters as if they were columns of a data frame, etc.
 
 ```{r}
 raster_brick <- c(NDVI, BUILT)
@@ -771,8 +805,8 @@ names(raster_brick) <- c("NDVI", "BUILT")
 raster_brick
 ```
 
-Note each raster is now a column in the spatraster.
-We can call for them using either the \$ or the [] syntax, this comes in handy in loops.
+Note each raster is now a column in the Spatraster.
+We can call for them using either the \$ or the [] syntax. This comes in handy in loops.
 
 ```{r}
 raster_brick$NDVI
@@ -781,15 +815,15 @@ raster_brick["NDVI"]
 
 ### Plotting Rasters into publication-ready maps
 
-Using tmap with a raster brick will plot all rasters automatically in a grid, but the function will assume they all are in the same scale.
-Which would work when using time series, or even the same variable across cities, but here we have stacked two rasters with different variables, so we will plot them separately and tm_arrange() them together.
+Using `tmap` with a raster brick will plot all rasters automatically in a grid, but the function will assume they all are in the same scale.
+This works when using time series, or even the same variable across cities, but here we have stacked two rasters with different variables, so we will plot them separately and `tm_arrange()` them together.
 
 Notice the several customizations of the map we included.
 
 ```{r}
 tmN <- tm_shape(raster_brick$NDVI)+
-   tm_raster(style="cont", #setting value to continuous, use "cat" for categorical rasters
-             legend.is.portrait = FALSE)+ #horizontal legend
+  tm_raster(style="cont", #setting value to continuous, use "cat" for categorical rasters
+            legend.is.portrait = FALSE)+ #horizontal legend
   tm_layout(main.title = "Vegetation density", #define a main title
             main.title.size=1,                # set size
             legend.outside=TRUE,               # put legend outside
@@ -799,8 +833,8 @@ tmN <- tm_shape(raster_brick$NDVI)+
   tm_scale_bar()                               # add scale bar 
 
 tmB <- tm_shape(raster_brick$BUILT)+
-   tm_raster(style="cont",  
-             legend.is.portrait = FALSE) +
+  tm_raster(style="cont",  
+            legend.is.portrait = FALSE) +
   tm_layout(main.title = "Building density",
             main.title.size=1,
             legend.outside=TRUE,  
@@ -815,9 +849,9 @@ tmNB <- tmap_arrange(tmN, tmB, ncol = 2, nrow = 1,
 tmNB
 ```
 
-We can save any map made with tmap, including tm_arrange() maps, using the save_tmap() function
+We can save any map made with tmap, including `tm_arrange()` maps, using the `save_tmap()` function
 
-```{r}
+```{r eval = FALSE}
 
 tmap_save(tmNB, "NDVI_BUILT_map.png", width=1920, height=1080)
 
@@ -825,9 +859,8 @@ tmap_save(tmNB, "NDVI_BUILT_map.png", width=1920, height=1080)
 
 ### Further raster manipulation
 
-We can do math between numeric rasters across the whole landscape of the study area with simple operations such as NDVI + BUILT.
-\* we can reclassify rasters using the classify() function and a two column or three column matrix, where values or ranges of values are provided in the first one or two columns and the new value is provided in the third column.
-We won't go into further detail on this here but know that you can.
+* Raster math: We can do math between numeric rasters across the whole landscape of the study area with simple operations such as NDVI + BUILT.
+* Reclassification: we can reclassify rasters using the `classify()` function and a two column or three column matrix, where values or ranges of values are provided in the first one or two columns and the new value is provided in the third column. We won't go into further detail on this here but know that this is another useful tool for working with rasters.
 
 ### Extracting data from rasters
 
@@ -916,10 +949,10 @@ all_locations <- left_join(all_locations, habitat_area, by = "locationid")
 
 ```
 
-## Use your spatial data in downstream analysis
+# Use your spatial data in downstream analysis
 
 The object `all_locations'` now has all the landscape variables we need across camera sites to eventually run an occupancy analysis.
-Because occupancy modeling is beyond the scope of this tutorial, we'll demonstrate with a linear models comparing environmental variables to the number of detections how sf objects (and spatvectors) can be directly use in statistical analyses as with any other data frame in R.
+Because occupancy modeling is beyond the scope of this tutorial, we'll demonstrate with linear models comparing environmental variables to the number of detections to show how sf objects (and spatvectors) can be directly use in statistical analyses as with any other data frame in R.
 
 Let's prepare our data for the analysis by joining our dataset containing our environmental variables per camera site, to our capture data using the left_join().
 Notice left_join works when binding a spatial dataframe with a dataframe, but not two spatial data frames, and you cannot left_join spatial data frame with different projections.
@@ -938,7 +971,7 @@ coyotes_complete <- left_join(all_locations, as.data.frame(coyotes), by="locatio
 coyotes_complete <- replace(coyotes_complete, is.na(coyotes_complete), 0)
 ```
 
-We can run stats directly with the sf object, but first let's check we comply a few assumptions, and scale our variables, we'll do all this directly on the sf object.
+We can run stats directly with the sf object, but first let's check we meet a few assumptions and scale our variables. We'll do all this directly on the sf object.
 
 ```{r}
 #plot histogram of detections
@@ -948,7 +981,6 @@ hist(log(coyotes_complete$detections)) #not gaussian at all
 coyotes_complete$detections_log <- log(coyotes_complete$detections)
 #replace -Inf to zero
 coyotes_complete <- coyotes_complete %>% mutate(detections_log_c = ifelse(detections_log <0, 0, detections_log))
-
 
 #scale variables
 coyotes_complete$BUILT <- scale(coyotes_complete$BUILT)
@@ -976,6 +1008,8 @@ summary(glm(detections_log_c ~ BUILT + NDVI + dist_to_road + forest_area, data=c
 
 #End
 ```
+
+\newpage
 
 <details closed>
 
@@ -1044,4 +1078,4 @@ summary(glm(detections_log_c ~ BUILT + NDVI + dist_to_road + forest_area, data=r
 
 ```
 
-There you go, you went from raw data to spatial analysis all in R.
+There you go, you went from raw data to spatial analysis all in R!
