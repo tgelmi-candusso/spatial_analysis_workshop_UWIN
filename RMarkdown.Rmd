@@ -124,15 +124,13 @@ library(leaflet)
 If you haven't already installed some of these packages, where is a fancy function to both install and load them at the same time.
 
 ```{r eval = FALSE}
-#fancy function to install packages only if you don't have them already
-if(!require(tmap)){
-    install.packages("tmap", repos = c("https://r-tmap.r-universe.dev",
-                                   "https://cloud.r-project.org"))
-    library(tmap)
-}
-if(!require(leaflet)){
-    install.packages("leaflet")
-    library(leaflet)
+packages_needed <-c("dplyr", "tidyr","tidyterra","sf","terra","ggplot2","tmap","leaflet","rosm")
+
+for (i in packages_needed){
+     if(!(i %in% installed.packages())){
+         install.packages(i, dependencies = TRUE)
+     }
+     require(i)
 }
 ```
 
@@ -895,7 +893,7 @@ all_locations <- left_join(all_locations, mean_values, by = "locationid")
 print(all_locations)
 ```
 
-Extract data on wildlife habitat patches for Seattle, this is a binary raster, cells containing wildlife habitat have a 1, the rest are NA.
+Now you will try to extract data related to areas identified as wildlife habitat patches in Seattle. Here is is a binary raster, cells containing wildlife habitat have a 1, the rest are NA.
 
 ```{r}
 habitat <- rast("maps/wildlife_habitat.tif")
